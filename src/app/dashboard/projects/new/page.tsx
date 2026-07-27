@@ -17,7 +17,7 @@ const defaultPhases = [
 
 export default function NewProjectPage() {
   const router = useRouter();
-  const { createProject, currentUser } = useStore();
+  const { createProject } = useStore();
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -28,18 +28,38 @@ export default function NewProjectPage() {
   const [startDate, setStartDate] = useState("");
   const [expectedEndDate, setExpectedEndDate] = useState("");
   const [selectedPhases, setSelectedPhases] = useState<number[]>([0, 1, 2, 3, 4]);
+  const [submitting, setSubmitting] = useState(false);
 
   const togglePhase = (idx: number) => setSelectedPhases((p) => p.includes(idx) ? p.filter((i) => i !== idx) : [...p, idx]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
     const budget = parseInt(totalBudget.replace(/[^0-9]/g, "")) || 0;
-    const phases = selectedPhases.map((i, idx) => ({
-      id: `phase-new-${Date.now()}-${i}`, projectId: "", title: defaultPhases[i].title, description: defaultPhases[i].description,
-      order: idx + 1, budgetAllocation: Math.round(budget / selectedPhases.length), budgetSpent: 0, status: "not_started" as const,
-      milestones: [], evidence: [], fundReleased: false, requiredDocuments: [],
-    }));
-    createProject({ name, description, projectType, location, address, totalBudget: budget, startDate, expectedEndDate, ownerId: currentUser?.id, phases, collaborators: [] });
-    router.push("/dashboard/projects");
+    const phaseBudget = Math.round(budget / selectedPhases.length);
+
+    const project = await createProject({
+      name,
+      description,
+      projectType,
+      location,
+      address,
+      totalBudget: budget,
+      startDate,
+      expectedEndDate,
+      phases: selectedPhases.map((i, idx) => ({
+        title: defaultPhases[i].title,
+        description: defaultPhases[i].description,
+        order: idx + 1,
+        budgetAllocation: phaseBudget,
+      })),
+    });
+
+    if (project) {
+      router.push(`/dashboard/projects/${project.id}`);
+    } else {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -97,19 +117,8 @@ export default function NewProjectPage() {
               <input type="text" value={totalBudget} onChange={(e) => setTotalBudget(e.target.value)} className="w-full px-4 py-3 text-[14px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all" placeholder="e.g. 50000000" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <DatePicker
-                label="Start Date"
-                value={startDate}
-                onChange={setStartDate}
-                placeholder="Select start date"
-              />
-              <DatePicker
-                label="Expected End Date"
-                value={expectedEndDate}
-                onChange={setExpectedEndDate}
-                placeholder="Select end date"
-                min={startDate || undefined}
-              />
+              <DatePicker label="Start Date" value={startDate} onChange={setStartDate} placeholder="Select start date" />
+              <DatePicker label="Expected End Date" value={expectedEndDate} onChange={setExpectedEndDate} placeholder="Select end date" min={startDate || undefined} />
             </div>
           </div>
         )}
@@ -139,11 +148,13 @@ export default function NewProjectPage() {
       </div>
 
       <div className="flex gap-3">
-        {step > 1 && <button onClick={() => setStep(step - 1)} className="flex-1 py-3 text-[14px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Back</button>}
+        {step > 1 && <button onClick={() => setStep(step - 1)} disabled={submitting} className="flex-1 py-3 text-[14px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all disabled:opacity-50">Back</button>}
         {step < 3 ? (
           <button onClick={() => setStep(step + 1)} disabled={step === 1 && !name} className="flex-1 py-3 text-[14px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all active:scale-[0.98] shadow-sm disabled:opacity-50">Continue</button>
         ) : (
-          <button onClick={handleSubmit} disabled={!name || selectedPhases.length === 0} className="flex-1 py-3 text-[14px] font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all active:scale-[0.98] shadow-sm disabled:opacity-50">Create Project</button>
+          <button onClick={handleSubmit} disabled={!name || selectedPhases.length === 0 || submitting} className="flex-1 py-3 text-[14px] font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all active:scale-[0.98] shadow-sm disabled:opacity-50">
+            {submitting ? "Creating..." : "Create Project"}
+          </button>
         )}
       </div>
     </div>

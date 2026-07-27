@@ -1,9 +1,25 @@
 import { create } from "zustand";
 import { User, Project, Activity, Notification, Dispute, Quote, Phase, PhaseStatus, Milestone, Evidence, Payment } from "@/types";
+import {
+  fetchProjects,
+  fetchProjectWithPhases,
+  insertProject,
+  insertPhase,
+  insertMilestone as insertMilestoneDB,
+  toggleMilestone as toggleMilestoneDB,
+  approvePhaseInDB,
+  releasePhaseFundInDB,
+  insertEvidence as insertEvidenceDB,
+  fetchActivities,
+  fetchPayments,
+  fetchDisputes,
+  insertDispute as insertDisputeDB,
+  fetchDisputeMessages,
+  insertDisputeMessage as insertDisputeMessageDB,
+} from "@/lib/supabase/browser-queries";
 
 interface AppState {
   currentUser: User | null;
-  users: User[];
   projects: Project[];
   activities: Activity[];
   notifications: Notification[];
@@ -11,39 +27,44 @@ interface AppState {
   quotes: Quote[];
   payments: Payment[];
   currentProjectId: string | null;
+  _loaded: boolean;
 
   setCurrentUser: (user: User | null) => void;
   setCurrentProject: (id: string | null) => void;
-  login: (email: string, password: string) => boolean;
-  signup: (name: string, email: string, role: User["role"]) => boolean;
   logout: () => void;
 
-  getProject: (id: string) => Project | undefined;
-  getCurrentProject: () => Project | undefined;
+  loadProjects: () => Promise<void>;
+  loadProject: (id: string) => Promise<Project | null>;
+  createProject: (project: {
+    name: string; description: string; location: string; address: string;
+    projectType: string; totalBudget: number; startDate: string; expectedEndDate: string;
+    phases: { title: string; description: string; order: number; budgetAllocation: number }[];
+  }) => Promise<Project | null>;
 
-  createProject: (project: Partial<Project>) => void;
   updatePhaseStatus: (projectId: string, phaseId: string, status: PhaseStatus) => void;
-  toggleMilestone: (projectId: string, phaseId: string, milestoneId: string) => void;
-  approvePhase: (projectId: string, phaseId: string) => void;
-  releasePhaseFund: (projectId: string, phaseId: string) => void;
-  addEvidence: (projectId: string, phaseId: string, evidence: Omit<Evidence, "id">) => void;
+  toggleMilestone: (projectId: string, phaseId: string, milestoneId: string) => Promise<void>;
+  approvePhase: (projectId: string, phaseId: string) => Promise<void>;
+  releasePhaseFund: (projectId: string, phaseId: string) => Promise<void>;
+  addEvidence: (projectId: string, phaseId: string, evidence: Omit<Evidence, "id">) => Promise<void>;
   verifyEvidence: (projectId: string, phaseId: string, evidenceId: string) => void;
 
+  loadPayments: (projectId: string) => Promise<void>;
   requestPayment: (payment: Omit<Payment, "id">) => void;
   approvePayment: (paymentId: string) => void;
 
-  raiseDispute: (dispute: Omit<Dispute, "id" | "messages" | "status">) => void;
-  addDisputeMessage: (disputeId: string, userId: string, content: string) => void;
+  loadDisputes: (projectId: string) => Promise<void>;
+  raiseDispute: (dispute: Omit<Dispute, "id" | "messages" | "status">) => Promise<void>;
+  addDisputeMessage: (disputeId: string, userId: string, content: string) => Promise<void>;
+
+  loadActivities: (projectId: string) => Promise<void>;
+  addActivity: (activity: Omit<Activity, "id">) => void;
 
   markNotificationRead: (notifId: string) => void;
   markAllNotificationsRead: () => void;
-
-  addActivity: (activity: Omit<Activity, "id">) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({
   currentUser: null,
-  users: [],
   projects: [],
   activities: [],
   notifications: [],
@@ -51,63 +72,70 @@ export const useStore = create<AppState>((set, get) => ({
   quotes: [],
   payments: [],
   currentProjectId: null,
+  _loaded: false,
 
   setCurrentUser: (user) => set({ currentUser: user }),
   setCurrentProject: (id) => set({ currentProjectId: id }),
+  logout: () => set({ currentUser: null, currentProjectId: null, projects: [], activities: [], payments: [], disputes: [], _loaded: false }),
 
-  login: (email, _password) => {
-    const user = get().users.find((u) => u.email === email);
-    if (user) {
-      set({ currentUser: user });
-      return true;
+  loadProjects: async () => {
+    const user = get().currentUser;
+    if (!user) return;
+    const projects = await fetchProjects(user.id);
+    set({ projects, _loaded: true });
+  },
+
+  loadProject: async (id) => {
+    const project = await fetchProjectWithPhases(id);
+    if (project) {
+      set((state) => {
+        const exists = state.projects.findIndex((p) => p.id === id);
+        if (exists >= 0) {
+          const projects = [...state.projects];
+          projects[exists] = project;
+          return { projects };
+        }
+        return { projects: [...state.projects, project] };
+      });
     }
-    return false;
+    return project;
   },
 
-  signup: (name, email, role) => {
-    const newUser: User = {
-      id: `user-${Date.now()}`,
-      name,
-      email,
-      role,
-      createdAt: new Date().toISOString(),
-    };
-    set((state) => ({ users: [...state.users, newUser], currentUser: newUser }));
-    return true;
-  },
+  createProject: async (data) => {
+    const project = await insertProject({
+      name: data.name,
+      description: data.description,
+      location: data.location,
+      address: data.address,
+      project_type: data.projectType,
+      total_budget: data.totalBudget,
+      start_date: data.startDate,
+      expected_end_date: data.expectedEndDate,
+      funds_locked: data.totalBudget,
+    });
 
-  logout: () => set({ currentUser: null, currentProjectId: null }),
+    if (!project) return null;
 
-  getProject: (id) => get().projects.find((p) => p.id === id),
-  getCurrentProject: () => {
-    const { currentProjectId, projects } = get();
-    return projects.find((p) => p.id === currentProjectId);
-  },
+    const phaseResults: Phase[] = [];
+    for (const phaseData of data.phases) {
+      const phase = await insertPhase({
+        project_id: project.id,
+        title: phaseData.title,
+        description: phaseData.description,
+        order_index: phaseData.order,
+        budget_allocation: phaseData.budgetAllocation,
+      });
+      if (phase) {
+        const ms1 = await insertMilestoneDB({ phase_id: phase.id, title: "Sub-phase Setup", description: "Initial setup and preparation" });
+        const ms2 = await insertMilestoneDB({ phase_id: phase.id, title: "Execution Complete", description: "All work items finished" });
+        phase.milestones = [ms1, ms2].filter(Boolean) as Milestone[];
+        phaseResults.push(phase);
+      }
+    }
 
-  createProject: (partial) => {
-    const newProject: Project = {
-      id: `proj-${Date.now()}`,
-      name: partial.name || "New Project",
-      description: partial.description || "",
-      location: partial.location || "",
-      address: partial.address || "",
-      projectType: partial.projectType || "Residential",
-      totalBudget: partial.totalBudget || 0,
-      spentBudget: 0,
-      currency: "NGN",
-      startDate: partial.startDate || new Date().toISOString(),
-      expectedEndDate: partial.expectedEndDate || "",
-      ownerId: partial.ownerId || get().currentUser?.id || "",
-      phases: partial.phases || [],
-      collaborators: partial.collaborators || [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      status: "planning",
-      completionPercentage: 0,
-      fundsLocked: partial.totalBudget || 0,
-      fundsReleased: 0,
-    };
-    set((state) => ({ projects: [...state.projects, newProject] }));
+    project.phases = phaseResults;
+    set((state) => ({ projects: [...state.projects, project] }));
+    return project;
   },
 
   updatePhaseStatus: (projectId, phaseId, status) => {
@@ -117,16 +145,20 @@ export const useStore = create<AppState>((set, get) => ({
         return {
           ...p,
           updatedAt: new Date().toISOString(),
-          phases: p.phases.map((ph) => {
-            if (ph.id !== phaseId) return ph;
-            return { ...ph, status };
-          }),
+          phases: p.phases.map((ph) => (ph.id === phaseId ? { ...ph, status } : ph)),
         };
       }),
     }));
   },
 
-  toggleMilestone: (projectId, phaseId, milestoneId) => {
+  toggleMilestone: async (projectId, phaseId, milestoneId) => {
+    const project = get().projects.find((p) => p.id === projectId);
+    const phase = project?.phases.find((p) => p.id === phaseId);
+    const ms = phase?.milestones.find((m) => m.id === milestoneId);
+    if (!ms) return;
+
+    await toggleMilestoneDB(milestoneId, !ms.completed);
+
     set((state) => ({
       projects: state.projects.map((p) => {
         if (p.id !== projectId) return p;
@@ -136,15 +168,11 @@ export const useStore = create<AppState>((set, get) => ({
             if (ph.id !== phaseId) return ph;
             return {
               ...ph,
-              milestones: ph.milestones.map((m) => {
-                if (m.id !== milestoneId) return m;
-                return {
-                  ...m,
-                  completed: !m.completed,
-                  completedAt: !m.completed ? new Date().toISOString() : undefined,
-                  completedBy: !m.completed ? state.currentUser?.id : undefined,
-                };
-              }),
+              milestones: ph.milestones.map((m) =>
+                m.id === milestoneId
+                  ? { ...m, completed: !m.completed, completedAt: !m.completed ? new Date().toISOString() : undefined }
+                  : m
+              ),
             };
           }),
         };
@@ -152,69 +180,67 @@ export const useStore = create<AppState>((set, get) => ({
     }));
   },
 
-  approvePhase: (projectId, phaseId) => {
-    const user = get().currentUser;
+  approvePhase: async (projectId, phaseId) => {
+    await approvePhaseInDB(phaseId);
     set((state) => ({
       projects: state.projects.map((p) => {
         if (p.id !== projectId) return p;
-        const allMilestonesCompleted = p.phases
-          .find((ph) => ph.id === phaseId)
-          ?.milestones.every((m) => m.completed);
-        if (!allMilestonesCompleted) return p;
         return {
           ...p,
           updatedAt: new Date().toISOString(),
-          phases: p.phases.map((ph) => {
-            if (ph.id !== phaseId) return ph;
-            return { ...ph, status: "approved" as PhaseStatus, approvedBy: user?.id, approvedAt: new Date().toISOString() };
-          }),
+          phases: p.phases.map((ph) =>
+            ph.id === phaseId ? { ...ph, status: "approved" as PhaseStatus, approvedBy: get().currentUser?.id, approvedAt: new Date().toISOString() } : ph
+          ),
         };
       }),
     }));
   },
 
-  releasePhaseFund: (projectId, phaseId) => {
+  releasePhaseFund: async (projectId, phaseId) => {
+    await releasePhaseFundInDB(phaseId);
     set((state) => ({
       projects: state.projects.map((p) => {
         if (p.id !== projectId) return p;
         const phase = p.phases.find((ph) => ph.id === phaseId);
-        if (!phase || phase.status !== "approved") return p;
+        if (!phase) return p;
         return {
           ...p,
           updatedAt: new Date().toISOString(),
           fundsReleased: p.fundsReleased + phase.budgetAllocation,
-          fundsLocked: p.fundsLocked - phase.budgetAllocation,
+          fundsLocked: Math.max(0, p.fundsLocked - phase.budgetAllocation),
           spentBudget: p.spentBudget + phase.budgetSpent,
-          phases: p.phases.map((ph) => {
-            if (ph.id !== phaseId) return ph;
-            return { ...ph, status: "funded" as PhaseStatus, fundReleased: true, fundedAt: new Date().toISOString() };
-          }),
+          phases: p.phases.map((ph) =>
+            ph.id === phaseId ? { ...ph, status: "funded" as PhaseStatus, fundReleased: true, fundedAt: new Date().toISOString() } : ph
+          ),
         };
       }),
     }));
   },
 
-  addEvidence: (projectId, phaseId, evidenceData) => {
-    const newEvidence: Evidence = {
-      ...evidenceData,
-      id: `ev-${Date.now()}`,
-    };
-    set((state) => ({
-      projects: state.projects.map((p) => {
-        if (p.id !== projectId) return p;
-        return {
-          ...p,
-          phases: p.phases.map((ph) => {
-            if (ph.id !== phaseId) return ph;
-            return { ...ph, evidence: [...ph.evidence, newEvidence] };
-          }),
-        };
-      }),
-    }));
+  addEvidence: async (projectId, phaseId, evidenceData) => {
+    const user = get().currentUser;
+    if (!user) return;
+    const ev = await insertEvidenceDB({
+      phase_id: phaseId,
+      type: evidenceData.type,
+      file_url: evidenceData.url,
+      description: evidenceData.caption,
+      user_id: user.id,
+    });
+    if (ev) {
+      set((state) => ({
+        projects: state.projects.map((p) => {
+          if (p.id !== projectId) return p;
+          return {
+            ...p,
+            phases: p.phases.map((ph) => (ph.id === phaseId ? { ...ph, evidence: [...ph.evidence, ev] } : ph)),
+          };
+        }),
+      }));
+    }
   },
 
   verifyEvidence: (projectId, phaseId, evidenceId) => {
-    const user = get().currentUser;
     set((state) => ({
       projects: state.projects.map((p) => {
         if (p.id !== projectId) return p;
@@ -224,10 +250,9 @@ export const useStore = create<AppState>((set, get) => ({
             if (ph.id !== phaseId) return ph;
             return {
               ...ph,
-              evidence: ph.evidence.map((ev) => {
-                if (ev.id !== evidenceId) return ev;
-                return { ...ev, verified: true, verifiedBy: user?.id, verifiedAt: new Date().toISOString() };
-              }),
+              evidence: ph.evidence.map((ev) =>
+                ev.id === evidenceId ? { ...ev, verified: true, verifiedBy: get().currentUser?.id, verifiedAt: new Date().toISOString() } : ev
+              ),
             };
           }),
         };
@@ -235,63 +260,68 @@ export const useStore = create<AppState>((set, get) => ({
     }));
   },
 
+  loadPayments: async (projectId) => {
+    const payments = await fetchPayments(projectId);
+    set({ payments });
+  },
+
   requestPayment: (paymentData) => {
-    const newPayment: Payment = {
-      ...paymentData,
-      id: `pay-${Date.now()}`,
-    };
-    set((state) => ({ payments: [...state.payments, newPayment] }));
+    set((state) => ({ payments: [...state.payments, { ...paymentData, id: `pay-${Date.now()}` }] }));
   },
 
   approvePayment: (paymentId) => {
+    set((state) => ({
+      payments: state.payments.map((pay) =>
+        pay.id === paymentId ? { ...pay, status: "completed" as const, approvedBy: get().currentUser?.id, processedAt: new Date().toISOString() } : pay
+      ),
+    }));
+  },
+
+  loadDisputes: async (projectId) => {
+    const disputes = await fetchDisputes(projectId);
+    set({ disputes });
+  },
+
+  raiseDispute: async (disputeData) => {
     const user = get().currentUser;
-    set((state) => ({
-      payments: state.payments.map((pay) => {
-        if (pay.id !== paymentId) return pay;
-        return { ...pay, status: "completed" as const, approvedBy: user?.id, processedAt: new Date().toISOString() };
-      }),
-    }));
+    if (!user) return;
+    const dispute = await insertDisputeDB({
+      project_id: disputeData.projectId,
+      phase_id: disputeData.phaseId,
+      raised_by: user.id,
+      title: disputeData.title,
+      description: disputeData.description,
+    });
+    if (dispute) {
+      set((state) => ({ disputes: [dispute, ...state.disputes] }));
+    }
   },
 
-  raiseDispute: (disputeData) => {
-    const newDispute: Dispute = {
-      ...disputeData,
-      id: `disp-${Date.now()}`,
-      status: "open",
-      messages: [],
-    };
-    set((state) => ({ disputes: [...state.disputes, newDispute] }));
+  addDisputeMessage: async (disputeId, userId, content) => {
+    const msg = await insertDisputeMessageDB(disputeId, userId, content);
+    if (msg) {
+      set((state) => ({
+        disputes: state.disputes.map((d) =>
+          d.id === disputeId ? { ...d, messages: [...d.messages, msg] } : d
+        ),
+      }));
+    }
   },
 
-  addDisputeMessage: (disputeId, userId, content) => {
-    set((state) => ({
-      disputes: state.disputes.map((d) => {
-        if (d.id !== disputeId) return d;
-        return {
-          ...d,
-          messages: [...d.messages, { id: `dm-${Date.now()}`, userId, content, createdAt: new Date().toISOString() }],
-        };
-      }),
-    }));
-  },
-
-  markNotificationRead: (notifId) => {
-    set((state) => ({
-      notifications: state.notifications.map((n) => (n.id === notifId ? { ...n, read: true } : n)),
-    }));
-  },
-
-  markAllNotificationsRead: () => {
-    set((state) => ({
-      notifications: state.notifications.map((n) => ({ ...n, read: true })),
-    }));
+  loadActivities: async (projectId) => {
+    const activities = await fetchActivities(projectId);
+    set({ activities });
   },
 
   addActivity: (activityData) => {
-    const newActivity: Activity = {
-      ...activityData,
-      id: `act-${Date.now()}`,
-    };
-    set((state) => ({ activities: [newActivity, ...state.activities] }));
+    set((state) => ({ activities: [{ ...activityData, id: `act-${Date.now()}` }, ...state.activities] }));
+  },
+
+  markNotificationRead: (notifId) => {
+    set((state) => ({ notifications: state.notifications.map((n) => (n.id === notifId ? { ...n, read: true } : n)) }));
+  },
+
+  markAllNotificationsRead: () => {
+    set((state) => ({ notifications: state.notifications.map((n) => ({ ...n, read: true })) }));
   },
 }));

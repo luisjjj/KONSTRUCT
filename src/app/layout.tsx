@@ -6,6 +6,12 @@ import { ThemeProvider } from "@/lib/theme";
 export const metadata: Metadata = {
   title: "Konstruct — Phase-Gated Construction Ledger",
   description: "A shared real-time dashboard for construction projects in Nigeria. Transparent phase-based project control with evidence-backed progress verification.",
+  icons: { icon: "/icon.svg" },
+  openGraph: {
+    title: "Konstruct — Phase-Gated Construction Ledger",
+    description: "Transparent phase-based project control with evidence-backed progress verification.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

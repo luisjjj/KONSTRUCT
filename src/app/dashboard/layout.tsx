@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { getRoleLabel, getRoleColor, cn } from "@/lib/utils";
 import { useTheme } from "@/lib/theme";
 import { createClient } from "@/lib/supabase/client";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import {
   IconBuilding, IconFolder, IconCheckCircle, IconCreditCard, IconShield,
   IconFileText, IconChart, IconSettings, IconBell, IconSearch, IconMenu,
@@ -226,7 +227,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="lg:ml-[272px]">
         <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="p-4 lg:p-8">{children}</main>
+        <main className="p-4 lg:p-8"><ErrorBoundary>{children}</ErrorBoundary></main>
       </div>
     </div>
   );

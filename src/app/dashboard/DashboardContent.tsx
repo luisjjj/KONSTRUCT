@@ -13,13 +13,17 @@ import {
 const PhaseRoadmap3D = dynamic(() => import("@/components/PhaseRoadmap3D"), { ssr: false });
 
 export default function DashboardContent() {
-  const { projects, activities, currentUser, notifications } = useStore();
-  const userProjects = projects.filter((p) => p.ownerId === currentUser?.id || p.collaborators.includes(currentUser?.id || ""));
+  const { projects, activities, currentUser, notifications, loadProjects } = useStore();
+  const [loading, setLoading] = useState(true);
   const [selectedProjectIndex, setSelectedProjectIndex] = useState(0);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const activeProject = userProjects[selectedProjectIndex] ?? userProjects[0];
+  useEffect(() => {
+    if (currentUser) {
+      loadProjects().finally(() => setLoading(false));
+    }
+  }, [currentUser, loadProjects]);
 
   const closeDropdown = useCallback(() => setIsDropdownOpen(false), []);
 
@@ -32,6 +36,17 @@ export default function DashboardContent() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [closeDropdown]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-8 h-8 border-2 border-slate-300 dark:border-slate-600 border-t-slate-900 dark:border-t-slate-100 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const userProjects = projects;
+  const activeProject = userProjects[selectedProjectIndex] ?? userProjects[0];
 
   if (!activeProject) {
     return (
@@ -250,16 +265,20 @@ export default function DashboardContent() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-5">
             <h3 className="text-xs font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider mb-3">Recent Activity</h3>
             <div className="space-y-3">
-              {activities.filter((a) => a.projectId === activeProject.id).slice(0, 5).map((act) => (
-                <div key={act.id} className="flex gap-3">
-                  <div className={cn("w-2 h-2 rounded-full mt-1.5 flex-shrink-0", act.type === "payment" ? "bg-indigo-500" : act.type === "evidence" ? "bg-cyan-500" : act.type === "phase" ? "bg-emerald-500" : "bg-slate-400 dark:bg-slate-500")} />
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-medium text-slate-900 dark:text-slate-100">{act.action}</div>
-                    <div className="text-[11px] text-slate-400 dark:text-slate-500 truncate">{act.details}</div>
-                    <div className="text-[10px] text-slate-400/70 dark:text-slate-500/70 mt-0.5">{act.userName} · {timeAgo(act.timestamp)}</div>
+              {activities.filter((a) => a.projectId === activeProject.id).slice(0, 5).length === 0 ? (
+                <p className="text-[12px] text-slate-400 dark:text-slate-500 text-center py-4">No activity yet</p>
+              ) : (
+                activities.filter((a) => a.projectId === activeProject.id).slice(0, 5).map((act) => (
+                  <div key={act.id} className="flex gap-3">
+                    <div className={cn("w-2 h-2 rounded-full mt-1.5 flex-shrink-0", act.type === "payment" ? "bg-indigo-500" : act.type === "evidence" ? "bg-cyan-500" : act.type === "phase" ? "bg-emerald-500" : "bg-slate-400 dark:bg-slate-500")} />
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium text-slate-900 dark:text-slate-100">{act.action}</div>
+                      <div className="text-[11px] text-slate-400 dark:text-slate-500 truncate">{act.details}</div>
+                      <div className="text-[10px] text-slate-400/70 dark:text-slate-500/70 mt-0.5">{timeAgo(act.timestamp)}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>

@@ -3,15 +3,16 @@
 import { useStore } from "@/lib/store";
 import { formatNaira, formatDate, formatDateTime, timeAgo, getPhaseStatusColor, getPhaseStatusLabel, cn } from "@/lib/utils";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { IconChevronLeft, IconCheckCircle, IconUpload, IconCheck, IconClock, IconLock, IconMoney } from "@/components/icons";
 
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = params.id as string;
-  const { projects, currentUser, approvePhase, releasePhaseFund, toggleMilestone, addEvidence, verifyEvidence } = useStore();
+  const { projects, currentUser, loadProject, approvePhase, releasePhaseFund, toggleMilestone, addEvidence, verifyEvidence } = useStore();
   const project = projects.find((p) => p.id === projectId);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"phases" | "evidence" | "payments" | "activity">("phases");
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -22,6 +23,20 @@ export default function ProjectDetailPage() {
   const [approvePhaseId, setApprovePhaseId] = useState<string | null>(null);
   const [showFund, setShowFund] = useState(false);
   const [fundPhaseId, setFundPhaseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (projectId) {
+      loadProject(projectId).finally(() => setLoading(false));
+    }
+  }, [projectId, loadProject]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-8 h-8 border-2 border-slate-300 dark:border-slate-600 border-t-slate-900 dark:border-t-slate-100 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!project) {
     return (
@@ -47,7 +62,7 @@ export default function ProjectDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <Link href="/dashboard/projects" className="inline-flex items-center gap-1 text-[13px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 mb-2 transition-colors">
+          <Link href="/dashboard/projects" className="inline-flex items-center gap-1 text-[13px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 mb-2 transition-colors">
             <IconChevronLeft size={14} /> Back to Projects
           </Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{project.name}</h1>
@@ -69,18 +84,18 @@ export default function ProjectDetailPage() {
           { label: "Released", value: formatNaira(project.fundsReleased), icon: <IconCheckCircle size={15} className="text-emerald-600" /> },
           { label: "Completion", value: `${project.completionPercentage}%`, icon: <IconCheckCircle size={15} className="text-violet-600" /> },
         ].map((s, i) => (
-          <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/80 dark:border-slate-700/80 p-4 text-center">
+          <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/80 p-4 text-center">
             <div className="flex items-center justify-center gap-1.5 mb-1">{s.icon}<span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">{s.label}</span></div>
             <div className="text-lg font-bold text-slate-900 dark:text-slate-100">{s.value}</div>
           </div>
         ))}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/80 dark:border-slate-700/80 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700/80 overflow-hidden">
         <div className="flex border-b border-slate-100 dark:border-slate-800 px-2 overflow-x-auto">
           {tabs.map((t) => (
             <button key={t} onClick={() => setActiveTab(t)}
-              className={cn("px-4 py-3 text-[13px] font-semibold border-b-2 transition-colors", activeTab === t ? "border-slate-900 text-slate-900 dark:text-slate-100" : "border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300")}>
+              className={cn("px-4 py-3 text-[13px] font-semibold border-b-2 transition-colors", activeTab === t ? "border-slate-900 text-slate-900 dark:text-slate-100" : "border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300")}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
@@ -89,7 +104,9 @@ export default function ProjectDetailPage() {
         <div className="p-6">
           {activeTab === "phases" && (
             <div className="space-y-3">
-              {project.phases.map((phase) => {
+              {project.phases.length === 0 ? (
+                <div className="text-center py-16 text-slate-400 dark:text-slate-500 text-[13px]">No phases created yet</div>
+              ) : project.phases.map((phase) => {
                 const done = phase.milestones.filter((m) => m.completed).length;
                 const total = phase.milestones.length;
                 const pct = phase.budgetAllocation > 0 ? (phase.budgetSpent / phase.budgetAllocation) * 100 : 0;
@@ -123,17 +140,21 @@ export default function ProjectDetailPage() {
                       <div className="border-t border-slate-100 dark:border-slate-800 p-4 space-y-4">
                         <div>
                           <h4 className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 mb-2">Milestones</h4>
-                          <div className="space-y-1.5">
-                            {phase.milestones.map((m) => (
-                              <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white dark:bg-slate-900 transition-colors" onClick={(e) => { e.stopPropagation(); toggleMilestone(project.id, phase.id, m.id); }}>
-                                <div className={cn("w-4.5 h-4.5 rounded-md border-2 flex items-center justify-center transition-colors", m.completed ? "bg-emerald-500 border-emerald-500" : "border-slate-300 hover:border-slate-400")}>
-                                  {m.completed && <IconCheck size={9} className="text-white" strokeWidth={3} />}
+                          {phase.milestones.length === 0 ? (
+                            <p className="text-[12px] text-slate-400 dark:text-slate-500">No milestones yet</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {phase.milestones.map((m) => (
+                                <div key={m.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white dark:hover:bg-slate-900 transition-colors" onClick={(e) => { e.stopPropagation(); toggleMilestone(project.id, phase.id, m.id); }}>
+                                  <div className={cn("w-4.5 h-4.5 rounded-md border-2 flex items-center justify-center transition-colors", m.completed ? "bg-emerald-500 border-emerald-500" : "border-slate-300 hover:border-slate-400")}>
+                                    {m.completed && <IconCheck size={9} className="text-white" strokeWidth={3} />}
+                                  </div>
+                                  <span className={cn("text-[13px] flex-1", m.completed ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400")}>{m.title}</span>
+                                  {m.completedAt && <span className="text-[10px] text-slate-400 dark:text-slate-500">{formatDateTime(m.completedAt)}</span>}
                                 </div>
-                                <span className={cn("text-[13px] flex-1", m.completed ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400")}>{m.title}</span>
-                                {m.completedAt && <span className="text-[10px] text-slate-400 dark:text-slate-500">{formatDateTime(m.completedAt)}</span>}
-                              </div>
-                            ))}
-                          </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         {phase.evidence.length > 0 && (
@@ -143,7 +164,7 @@ export default function ProjectDetailPage() {
                               {phase.evidence.map((ev) => (
                                 <div key={ev.id} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
                                   <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                                    {ev.type === "photo" ? <IconUpload size={14} className="text-slate-500 dark:text-slate-400" /> : <IconUpload size={14} className="text-slate-500 dark:text-slate-400" />}
+                                    <IconUpload size={14} className="text-slate-500 dark:text-slate-400" />
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="text-[12px] font-medium text-slate-900 dark:text-slate-100 truncate">{ev.caption}</div>
@@ -274,7 +295,7 @@ export default function ProjectDetailPage() {
             </p>
             <div className="flex gap-3">
               <button onClick={() => setShowApprove(false)} className="flex-1 py-2.5 text-[13px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
-              <button onClick={() => { if (approvePhaseId) approvePhase(project.id, approvePhaseId); setShowApprove(false); }} className="flex-1 py-2.5 text-[13px] font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all">Confirm Approval</button>
+              <button onClick={async () => { if (approvePhaseId) await approvePhase(project.id, approvePhaseId); setShowApprove(false); }} className="flex-1 py-2.5 text-[13px] font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all">Confirm Approval</button>
             </div>
           </div>
         </div>
@@ -292,7 +313,7 @@ export default function ProjectDetailPage() {
             </p>
             <div className="flex gap-3">
               <button onClick={() => setShowFund(false)} className="flex-1 py-2.5 text-[13px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
-              <button onClick={() => { if (fundPhaseId) releasePhaseFund(project.id, fundPhaseId); setShowFund(false); }} className="flex-1 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">Release Funds</button>
+              <button onClick={async () => { if (fundPhaseId) await releasePhaseFund(project.id, fundPhaseId); setShowFund(false); }} className="flex-1 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">Release Funds</button>
             </div>
           </div>
         </div>
