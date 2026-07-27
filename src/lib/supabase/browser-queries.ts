@@ -225,7 +225,7 @@ export async function insertProject(data: {
       description: data.description || "",
       location: data.location || "",
       total_budget: data.total_budget,
-      status: data.status || "planning",
+      status: data.status || "active",
       funds_locked: data.funds_locked || data.total_budget,
       owner_id: user?.id,
     })
@@ -233,15 +233,16 @@ export async function insertProject(data: {
     .single();
 
   if (error || !row) {
-    console.error("Failed to create project:", error?.message, error?.details);
+    console.error("Failed to create project:", error?.message, error?.details, error?.hint);
     return null;
   }
 
-  await supabase.from("project_collaborators").insert({
+  const { error: collabError } = await supabase.from("project_collaborators").insert({
     project_id: row.id,
     user_id: user?.id,
     role: "owner",
   });
+  if (collabError) console.error("Failed to add collaborator:", collabError.message);
 
   return mapProject(row);
 }
