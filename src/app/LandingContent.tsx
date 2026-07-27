@@ -125,10 +125,10 @@ export default function LandingContent() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
-              { val: 50, prefix: "\u20A6", suffix: "B+", label: "Project Value Tracked" },
-              { val: 200, suffix: "+", label: "Active Projects" },
+              { val: 20, prefix: "\u20A6", suffix: "M+", label: "Projected Value Tracked" },
+              { val: 5, suffix: "+", label: "Active Properties" },
               { val: 98, suffix: "%", label: "On-Time Completion" },
-              { val: 1500, suffix: "+", label: "Verified Milestones" },
+              { val: 50, suffix: "+", label: "Milestones Verified" },
             ].map((s, i) => (
               <div key={i} className="text-center">
                 <div className="text-3xl lg:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
