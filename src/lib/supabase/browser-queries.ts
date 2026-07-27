@@ -207,16 +207,17 @@ export async function insertProject(data: {
   name: string;
   description?: string;
   location?: string;
-  address?: string;
-  project_type?: string;
   total_budget: number;
-  start_date?: string;
-  expected_end_date?: string;
   status?: string;
   funds_locked?: number;
 }): Promise<Project | null> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    console.error("insertProject: No authenticated user");
+    return null;
+  }
 
   const { data: row, error } = await supabase
     .from("projects")
@@ -227,7 +228,7 @@ export async function insertProject(data: {
       total_budget: data.total_budget,
       status: data.status || "active",
       funds_locked: data.funds_locked || data.total_budget,
-      owner_id: user?.id,
+      owner_id: user.id,
     })
     .select()
     .single();
@@ -239,7 +240,7 @@ export async function insertProject(data: {
 
   const { error: collabError } = await supabase.from("project_collaborators").insert({
     project_id: row.id,
-    user_id: user?.id,
+    user_id: user.id,
     role: "owner",
   });
   if (collabError) console.error("Failed to add collaborator:", collabError.message);
