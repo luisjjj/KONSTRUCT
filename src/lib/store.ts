@@ -106,11 +106,8 @@ export const useStore = create<AppState>((set, get) => ({
       name: data.name,
       description: data.description,
       location: data.location,
-      address: data.address,
-      project_type: data.projectType,
       total_budget: data.totalBudget,
-      start_date: data.startDate,
-      expected_end_date: data.expectedEndDate,
+      status: "active",
       funds_locked: data.totalBudget,
     });
 
