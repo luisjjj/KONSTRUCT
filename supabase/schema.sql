@@ -378,10 +378,13 @@ create policy "Collaborators can view project collaborators"
   on project_collaborators for select
   using (is_project_collaborator(project_id));
 
--- Project owners can add collaborators
+-- Project owners can add collaborators (also allow owners to add themselves during project creation)
 create policy "Owners can add collaborators"
   on project_collaborators for insert
-  with check (is_project_owner(project_id));
+  with check (
+    is_project_owner(project_id)
+    OR user_id = auth.uid()
+  );
 
 -- Project owners can update collaborator roles
 create policy "Owners can update collaborators"

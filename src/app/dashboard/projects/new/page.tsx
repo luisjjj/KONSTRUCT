@@ -29,12 +29,14 @@ export default function NewProjectPage() {
   const [expectedEndDate, setExpectedEndDate] = useState("");
   const [selectedPhases, setSelectedPhases] = useState<number[]>([0, 1, 2, 3, 4]);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const togglePhase = (idx: number) => setSelectedPhases((p) => p.includes(idx) ? p.filter((i) => i !== idx) : [...p, idx]);
 
   const handleSubmit = async () => {
     if (submitting) return;
     setSubmitting(true);
+    setError("");
     const budget = parseInt(totalBudget.replace(/[^0-9]/g, "")) || 0;
     const phaseBudget = Math.round(budget / selectedPhases.length);
 
@@ -58,6 +60,7 @@ export default function NewProjectPage() {
     if (project) {
       router.push(`/dashboard/projects/${project.id}`);
     } else {
+      setError("Failed to create project. Please try again.");
       setSubmitting(false);
     }
   };
@@ -76,6 +79,10 @@ export default function NewProjectPage() {
           </div>
         ))}
       </div>
+
+      {error && (
+        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3">{error}</div>
+      )}
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-6">
         {step === 1 && (

@@ -224,11 +224,7 @@ export async function insertProject(data: {
       name: data.name,
       description: data.description || "",
       location: data.location || "",
-      address: data.address || "",
-      project_type: data.project_type || "Residential",
       total_budget: data.total_budget,
-      start_date: data.start_date || "",
-      expected_end_date: data.expected_end_date || "",
       status: data.status || "planning",
       funds_locked: data.funds_locked || data.total_budget,
       owner_id: user?.id,
@@ -237,7 +233,7 @@ export async function insertProject(data: {
     .single();
 
   if (error || !row) {
-    console.error("Failed to create project:", error);
+    console.error("Failed to create project:", error?.message, error?.details);
     return null;
   }
 
