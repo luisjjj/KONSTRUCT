@@ -16,10 +16,13 @@ import {
   insertDispute as insertDisputeDB,
   fetchDisputeMessages,
   insertDisputeMessage as insertDisputeMessageDB,
+  fetchSubscription,
+  type Subscription,
 } from "@/lib/supabase/browser-queries";
 
 interface AppState {
   currentUser: User | null;
+  subscription: Subscription | null;
   projects: Project[];
   activities: Activity[];
   notifications: Notification[];
@@ -33,6 +36,7 @@ interface AppState {
   setCurrentProject: (id: string | null) => void;
   logout: () => void;
 
+  loadSubscription: () => Promise<void>;
   loadProjects: () => Promise<void>;
   loadProject: (id: string) => Promise<Project | null>;
   createProject: (project: {
@@ -65,6 +69,7 @@ interface AppState {
 
 export const useStore = create<AppState>((set, get) => ({
   currentUser: null,
+  subscription: null,
   projects: [],
   activities: [],
   notifications: [],
@@ -76,7 +81,14 @@ export const useStore = create<AppState>((set, get) => ({
 
   setCurrentUser: (user) => set({ currentUser: user }),
   setCurrentProject: (id) => set({ currentProjectId: id }),
-  logout: () => set({ currentUser: null, currentProjectId: null, projects: [], activities: [], payments: [], disputes: [], _loaded: false }),
+  logout: () => set({ currentUser: null, subscription: null, currentProjectId: null, projects: [], activities: [], payments: [], disputes: [], _loaded: false }),
+
+  loadSubscription: async () => {
+    const user = get().currentUser;
+    if (!user) return;
+    const subscription = await fetchSubscription(user.id);
+    set({ subscription });
+  },
 
   loadProjects: async () => {
     const user = get().currentUser;

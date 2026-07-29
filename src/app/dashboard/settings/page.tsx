@@ -2,16 +2,26 @@
 
 import { useStore } from "@/lib/store";
 import { getRoleLabel, getRoleColor, cn } from "@/lib/utils";
-import { useState } from "react";
-import { IconSettings, IconKey, IconTrash, IconCheckCircle } from "@/components/icons";
+import { useState, useEffect } from "react";
+import { IconSettings, IconKey, IconTrash, IconCheckCircle, IconCreditCard } from "@/components/icons";
+import Link from "next/link";
+import dynamic from "next/dynamic";
+
+const FlutterwavePay = dynamic(() => import("@/components/FlutterwavePay"), { ssr: false });
+
+const planPrices: Record<string, number> = { professional: 25000, enterprise: 100000 };
 
 export default function SettingsPage() {
-  const { currentUser } = useStore();
+  const { currentUser, subscription, loadSubscription } = useStore();
   const [name, setName] = useState(currentUser?.name || "");
   const [email, setEmail] = useState(currentUser?.email || "");
   const [phone, setPhone] = useState(currentUser?.phone || "");
   const [org, setOrg] = useState(currentUser?.organization || "");
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    loadSubscription();
+  }, [loadSubscription]);
 
   const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
 
@@ -61,6 +71,70 @@ export default function SettingsPage() {
             {saved ? "Saved!" : "Save Changes"}
           </button>
         </div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Subscription</h2>
+          <Link href="/pricing" className="text-[12px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors">
+            View Plans
+          </Link>
+        </div>
+        {subscription ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center">
+                <IconCreditCard size={18} className="text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 capitalize">{subscription.planName}</span>
+                  <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400">Active</span>
+                </div>
+                {subscription.currentPeriodEnd && (
+                  <p className="text-[12px] text-slate-400 dark:text-slate-500 mt-0.5">
+                    Renews {new Date(subscription.currentPeriodEnd).toLocaleDateString("en-NG", { month: "long", day: "numeric", year: "numeric" })}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {subscription.planName === "starter" && (
+                <FlutterwavePay
+                  amount={25000}
+                  planName="Professional"
+                  planId="professional"
+                  customerEmail={currentUser?.email || ""}
+                  customerName={currentUser?.name || ""}
+                  onSuccess={() => loadSubscription()}
+                  className="px-4 py-2 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all"
+                >
+                  Upgrade to Professional
+                </FlutterwavePay>
+              )}
+              {subscription.planName === "professional" && (
+                <FlutterwavePay
+                  amount={100000}
+                  planName="Enterprise"
+                  planId="enterprise"
+                  customerEmail={currentUser?.email || ""}
+                  customerName={currentUser?.name || ""}
+                  onSuccess={() => loadSubscription()}
+                  className="px-4 py-2 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all"
+                >
+                  Upgrade to Enterprise
+                </FlutterwavePay>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-6">
+            <p className="text-[13px] text-slate-400 dark:text-slate-500 mb-3">You are on the free Starter plan</p>
+            <Link href="/pricing" className="px-5 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">
+              View Plans
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-6">

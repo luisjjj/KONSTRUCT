@@ -527,6 +527,37 @@ export async function fetchActivities(projectId: string): Promise<Activity[]> {
   return (rows || []).map(mapActivity);
 }
 
+// ── Subscriptions ──────────────────────────────────────────────────────────
+
+export interface Subscription {
+  id: string;
+  userId: string;
+  planName: string;
+  status: string;
+  currentPeriodEnd: string | null;
+}
+
+export async function fetchSubscription(userId: string): Promise<Subscription | null> {
+  const supabase = createClient();
+  const { data: row } = await supabase
+    .from("subscriptions")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!row) return null;
+  return {
+    id: row.id,
+    userId: row.user_id,
+    planName: row.plan_name,
+    status: row.status,
+    currentPeriodEnd: row.current_period_end,
+  };
+}
+
 // ── Payments ─────────────────────────────────────────────────────────────────
 
 export async function fetchPayments(projectId: string): Promise<Payment[]> {
