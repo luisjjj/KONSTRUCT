@@ -60,7 +60,10 @@ export default function PricingPage() {
       const periodEnd = new Date(now);
       periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-      const { error: subError } = await supabase.from("subscriptions").upsert({
+      // Delete any existing subscription, then insert fresh
+      await supabase.from("subscriptions").delete().eq("user_id", user.id);
+
+      const { error: subError } = await supabase.from("subscriptions").insert({
         user_id: user.id,
         customer_email: user.email || "",
         flutterwave_plan_id: planName,
@@ -70,8 +73,8 @@ export default function PricingPage() {
         currency: "NGN",
         current_period_start: now.toISOString(),
         current_period_end: periodEnd.toISOString(),
-      }, { onConflict: "user_id" });
-      console.log("Subscription upsert:", { planName, errorMsg: subError?.message, errorCode: subError?.code, errorDetails: subError?.details, errorHint: subError?.hint });
+      });
+      console.log("Subscription insert:", { planName, errorMsg: subError?.message, errorCode: subError?.code });
     }
     setSuccess(true);
   };
