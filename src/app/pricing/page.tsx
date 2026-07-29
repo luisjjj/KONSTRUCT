@@ -34,9 +34,21 @@ export default function PricingPage() {
     });
   }, []);
 
-  const handleSuccess = (planName: string) => {
+  const handleSuccess = async (planName: string) => {
     setSubscribedPlan(planName);
     setSuccess(true);
+
+    // Update user role in database (in case webhook is delayed)
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && planName !== "starter") {
+      await supabase.rpc("update_user_role_for_subscription", {
+        p_user_id: user.id,
+        p_plan_name: planName,
+      });
+      // Refresh session to get updated profile
+      await supabase.auth.getSession();
+    }
   };
 
   if (success) {

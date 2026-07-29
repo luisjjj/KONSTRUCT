@@ -37,6 +37,7 @@ interface AppState {
   logout: () => void;
 
   loadSubscription: () => Promise<void>;
+  refreshUserProfile: () => Promise<void>;
   loadProjects: () => Promise<void>;
   loadProject: (id: string) => Promise<Project | null>;
   createProject: (project: {
@@ -88,6 +89,21 @@ export const useStore = create<AppState>((set, get) => ({
     if (!user) return;
     const subscription = await fetchSubscription(user.id);
     set({ subscription });
+  },
+
+  refreshUserProfile: async () => {
+    const user = get().currentUser;
+    if (!user) return;
+    const { createClient } = await import("@/lib/supabase/client");
+    const supabase = createClient();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (profile) {
+      set({ currentUser: { ...user, role: profile.role } });
+    }
   },
 
   loadProjects: async () => {

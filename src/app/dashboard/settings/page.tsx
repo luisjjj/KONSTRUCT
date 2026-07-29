@@ -12,7 +12,7 @@ const FlutterwavePay = dynamic(() => import("@/components/FlutterwavePay"), { ss
 const planPrices: Record<string, number> = { professional: 25000, enterprise: 100000 };
 
 export default function SettingsPage() {
-  const { currentUser, subscription, loadSubscription } = useStore();
+  const { currentUser, subscription, loadSubscription, refreshUserProfile } = useStore();
   const [name, setName] = useState(currentUser?.name || "");
   const [email, setEmail] = useState(currentUser?.email || "");
   const [phone, setPhone] = useState(currentUser?.phone || "");
@@ -106,7 +106,7 @@ export default function SettingsPage() {
                   planId="professional"
                   customerEmail={currentUser?.email || ""}
                   customerName={currentUser?.name || ""}
-                  onSuccess={() => loadSubscription()}
+                  onSuccess={async () => { await loadSubscription(); await refreshUserProfile(); }}
                   className="px-4 py-2 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all"
                 >
                   Upgrade to Professional
@@ -119,7 +119,7 @@ export default function SettingsPage() {
                   planId="enterprise"
                   customerEmail={currentUser?.email || ""}
                   customerName={currentUser?.name || ""}
-                  onSuccess={() => loadSubscription()}
+                  onSuccess={async () => { await loadSubscription(); await refreshUserProfile(); }}
                   className="px-4 py-2 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all"
                 >
                   Upgrade to Enterprise

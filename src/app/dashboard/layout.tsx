@@ -199,12 +199,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
       const { data: { user } } = await supabase.auth.getUser();
       if (user && mounted) {
+        // Fetch role from profiles table (not user_metadata, which is set at signup)
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
         const meta = user.user_metadata || {};
         setCurrentUser({
           id: user.id,
           name: meta.full_name || user.email?.split("@")[0] || "User",
           email: user.email || "",
-          role: meta.role || "owner",
+          role: profile?.role || meta.role || "owner",
           createdAt: user.created_at,
         });
       }

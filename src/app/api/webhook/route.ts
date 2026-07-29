@@ -11,7 +11,6 @@ export async function POST(request: Request) {
     const body = await request.text();
     const signature = request.headers.get("verif-hash");
 
-    // Verify webhook signature
     if (signature !== process.env.FLW_SECRET_HASH) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
@@ -25,23 +24,20 @@ export async function POST(request: Request) {
       const planId = String(data.plan || "");
       const amount = data.amount || 0;
 
-      // Determine plan name from amount
       let planName = "starter";
       if (amount >= 100000) planName = "enterprise";
       else if (amount >= 25000) planName = "professional";
 
-      // Find user by email
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .ilike("id", "%")
-        .single();
-
-      // Try matching by email from auth metadata
+      // Find user by email from auth
       const { data: authUsers } = await supabase.auth.admin.listUsers();
       const user = authUsers?.users?.find(
         (u) => u.email?.toLowerCase() === email.toLowerCase()
       );
+
+      if (!user) {
+        console.error("Webhook: No user found for email", email);
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
 
       // Upsert subscription
       const now = new Date();
@@ -50,7 +46,7 @@ export async function POST(request: Request) {
 
       await supabase.from("subscriptions").upsert(
         {
-          user_id: user?.id || null,
+          user_id: user.id,
           customer_email: email,
           flutterwave_transaction_id: txId,
           flutterwave_plan_id: planId,
@@ -64,9 +60,15 @@ export async function POST(request: Request) {
         { onConflict: "flutterwave_transaction_id" }
       );
 
-      // Update user role if professional or enterprise
-      if (user && planName !== "starter") {
-        // Roles are immutable, but we can track subscription separately
+      // Update user role based on subscription plan
+      if (planName !== "starter") {
+        const { error: roleError } = await supabase.rpc("update_user_role_for_subscription", {
+          p_user_id: user.id,
+          p_plan_name: planName,
+        });
+        if (roleError) {
+          console.error("Failed to update user role:", roleError.message);
+        }
       }
     }
 
