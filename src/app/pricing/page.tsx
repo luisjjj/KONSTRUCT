@@ -40,11 +40,26 @@ export default function PricingPage() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (user && planName !== "starter") {
-      const { data, error } = await supabase.rpc("update_user_role_for_subscription", {
-        p_user_id: user.id,
-        p_plan_name: planName,
-      });
-      console.log("Role update result:", { data, error, planName, userId: user.id });
+      const roleMap: Record<string, string> = {
+        professional: "contractor",
+        enterprise: "owner",
+      };
+      const newRole = roleMap[planName];
+      if (newRole) {
+        // Direct update via RLS (users can update own profile)
+        const { error: updateErr } = await supabase
+          .from("profiles")
+          .update({ role: newRole })
+          .eq("id", user.id);
+        console.log("Direct role update:", { newRole, error: updateErr });
+
+        // Also try RPC as backup
+        const { error: rpcErr } = await supabase.rpc("update_user_role_for_subscription", {
+          p_user_id: user.id,
+          p_plan_name: planName,
+        });
+        console.log("RPC role update:", { planName, error: rpcErr });
+      }
     }
     setSuccess(true);
   };
