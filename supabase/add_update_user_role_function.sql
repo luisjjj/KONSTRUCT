@@ -1,13 +1,13 @@
--- Function to update user role based on subscription (bypasses immutability trigger)
--- Uses SECURITY DEFINER so it runs as the function owner, not the calling user
+-- Function to update user role based on subscription
+-- Drops and recreates the immutability trigger to allow the update
 create or replace function update_user_role_for_subscription(
   p_user_id uuid,
   p_plan_name text
 )
 returns void as $$
 begin
-  -- Temporarily disable the role immutability trigger
-  alter table profiles disable trigger prevent_profile_role_change;
+  -- Drop the immutability trigger
+  drop trigger if exists prevent_profile_role_change on profiles;
 
   -- Update the role
   update profiles
@@ -18,7 +18,9 @@ begin
   end
   where id = p_user_id;
 
-  -- Re-enable the trigger
-  alter table profiles enable trigger prevent_profile_role_change;
+  -- Recreate the immutability trigger
+  create trigger prevent_profile_role_change
+    before update on profiles
+    for each row execute function prevent_role_change();
 end;
 $$ language plpgsql security definer;
