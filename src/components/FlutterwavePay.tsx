@@ -64,9 +64,10 @@ export default function FlutterwavePay({
     try {
       handleFlutterPayment({
         callback: async (response) => {
+          console.log("Flutterwave callback:", response);
           closePaymentModal();
           if (response.status === "successful") {
-            // Verify payment server-side
+            console.log("Payment successful, verifying...");
             try {
               const res = await fetch("/api/subscription/verify", {
                 method: "POST",
@@ -74,11 +75,14 @@ export default function FlutterwavePay({
                 body: JSON.stringify({ transactionId: response.transaction_id }),
               });
               const data = await res.json();
+              console.log("Verification result:", data);
               onSuccess?.({ ...response, verified: data.success });
-            } catch {
+            } catch (e) {
+              console.log("Verify call failed:", e);
               onSuccess?.({ ...response, verified: false });
             }
           } else {
+            console.log("Payment not successful:", response.status);
             onError?.(response);
           }
           setLoading(false);
