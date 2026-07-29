@@ -60,16 +60,18 @@ export default function PricingPage() {
       const periodEnd = new Date(now);
       periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-      await supabase.from("subscriptions").insert({
+      const { error: subError } = await supabase.from("subscriptions").upsert({
         user_id: user.id,
         customer_email: user.email || "",
+        flutterwave_plan_id: planName,
         plan_name: planName,
         status: "active",
         amount: planName === "enterprise" ? 100000 : 25000,
         currency: "NGN",
         current_period_start: now.toISOString(),
         current_period_end: periodEnd.toISOString(),
-      });
+      }, { onConflict: "user_id" });
+      console.log("Subscription upsert:", { planName, error: subError });
     }
     setSuccess(true);
   };
