@@ -88,6 +88,7 @@ export const useStore = create<AppState>((set, get) => ({
     const user = get().currentUser;
     if (!user) return;
     const subscription = await fetchSubscription(user.id);
+    console.log("loadSubscription:", { userId: user.id, subscription });
     set({ subscription });
   },
 
