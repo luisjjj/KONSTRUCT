@@ -45,21 +45,31 @@ export default function PricingPage() {
         enterprise: "owner",
       };
       const newRole = roleMap[planName];
-      if (newRole) {
-        // Direct update via RLS (users can update own profile)
-        const { error: updateErr } = await supabase
-          .from("profiles")
-          .update({ role: newRole })
-          .eq("id", user.id);
-        console.log("Direct role update:", { newRole, error: updateErr });
 
-        // Also try RPC as backup
-        const { error: rpcErr } = await supabase.rpc("update_user_role_for_subscription", {
+      // Update role
+      if (newRole) {
+        await supabase.from("profiles").update({ role: newRole }).eq("id", user.id);
+        await supabase.rpc("update_user_role_for_subscription", {
           p_user_id: user.id,
           p_plan_name: planName,
         });
-        console.log("RPC role update:", { planName, error: rpcErr });
       }
+
+      // Create subscription record
+      const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+      await supabase.from("subscriptions").insert({
+        user_id: user.id,
+        customer_email: user.email || "",
+        plan_name: planName,
+        status: "active",
+        amount: planName === "enterprise" ? 100000 : 25000,
+        currency: "NGN",
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+      });
     }
     setSuccess(true);
   };
