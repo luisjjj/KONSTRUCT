@@ -66,7 +66,7 @@ export default function FlutterwavePay({
         callback: async (response) => {
           console.log("Flutterwave callback:", response);
           closePaymentModal();
-          if (response.status === "successful") {
+          if (response.status === "successful" || response.status === "completed") {
             console.log("Payment successful, verifying...");
             try {
               const res = await fetch("/api/subscription/verify", {
