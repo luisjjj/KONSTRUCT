@@ -71,7 +71,7 @@ export default function PricingPage() {
         current_period_start: now.toISOString(),
         current_period_end: periodEnd.toISOString(),
       }, { onConflict: "user_id" });
-      console.log("Subscription upsert:", { planName, error: subError });
+      console.log("Subscription upsert:", { planName, errorMsg: subError?.message, errorCode: subError?.code, errorDetails: subError?.details, errorHint: subError?.hint });
     }
     setSuccess(true);
   };
