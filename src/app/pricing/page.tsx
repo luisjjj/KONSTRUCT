@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { IconBuilding, IconCheckCircle } from "@/components/icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -18,7 +18,21 @@ const plans = [
 export default function PricingPage() {
   const [success, setSuccess] = useState(false);
   const [subscribedPlan, setSubscribedPlan] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [userName, setUserName] = useState("");
   const router = useRouter();
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+      if (session?.user) {
+        setUserEmail(session.user.email || "");
+        setUserName(session.user.user_metadata?.full_name || session.user.user_metadata?.name || "");
+      }
+    });
+  }, []);
 
   const handleSuccess = (planName: string) => {
     setSubscribedPlan(planName);
@@ -59,8 +73,17 @@ export default function PricingPage() {
             <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">Konstruct</span>
           </Link>
           <div className="hidden sm:flex items-center gap-3">
-            <Link href="/login" className="px-4 py-2 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Log In</Link>
-            <Link href="/signup" className="px-5 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">Get Started</Link>
+            {isLoggedIn ? (
+              <>
+                <Link href="/dashboard" className="px-4 py-2 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Dashboard</Link>
+                <Link href="/dashboard/projects" className="px-5 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">My Projects</Link>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="px-4 py-2 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Log In</Link>
+                <Link href="/signup" className="px-5 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">Get Started</Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -95,8 +118,8 @@ export default function PricingPage() {
                   amount={plan.amount}
                   planName={plan.name}
                   planId={plan.id}
-                  customerEmail=""
-                  customerName=""
+                  customerEmail={userEmail}
+                  customerName={userName}
                   onSuccess={() => handleSuccess(plan.name)}
                   className={`block w-full text-center py-3 text-sm font-semibold rounded-xl transition-all ${plan.popular ? "bg-slate-900 text-white hover:bg-slate-800 shadow-sm" : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
                 >
