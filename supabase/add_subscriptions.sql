@@ -23,7 +23,7 @@ alter table subscriptions enable row level security;
 -- Users can read their own subscriptions
 create policy "Users can view own subscriptions"
   on subscriptions for select
-  using (user_id = auth.uid() or customer_email = (select email from profiles where id = auth.uid()));
+  using (user_id = auth.uid());
 
 -- Service role can insert/update (for webhooks)
 create policy "Service role can manage subscriptions"

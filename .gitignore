@@ -9,6 +9,7 @@ out/
 
 # misc
 .env*.local
+.env.flutterwave
 *.tsbuildinfo
 next-env.d.ts
 
