@@ -17,7 +17,12 @@ import {
   fetchDisputeMessages,
   insertDisputeMessage as insertDisputeMessageDB,
   fetchSubscription,
+  fetchNotifications as fetchNotificationsDB,
+  insertNotification as insertNotificationDB,
+  markNotificationRead as markNotificationReadDB,
+  markAllNotificationsRead as markAllNotificationsReadDB,
   type Subscription,
+  type NotificationRow,
 } from "@/lib/supabase/browser-queries";
 
 interface AppState {
@@ -64,8 +69,10 @@ interface AppState {
   loadActivities: (projectId: string) => Promise<void>;
   addActivity: (activity: Omit<Activity, "id">) => void;
 
-  markNotificationRead: (notifId: string) => void;
-  markAllNotificationsRead: () => void;
+  loadNotifications: () => Promise<void>;
+  addNotification: (data: { title: string; message: string; type: string; link?: string }) => Promise<void>;
+  markNotificationRead: (notifId: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -207,6 +214,8 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   approvePhase: async (projectId, phaseId) => {
+    const project = get().projects.find((p) => p.id === projectId);
+    const phase = project?.phases.find((ph) => ph.id === phaseId);
     await approvePhaseInDB(phaseId);
     set((state) => ({
       projects: state.projects.map((p) => {
@@ -220,9 +229,19 @@ export const useStore = create<AppState>((set, get) => ({
         };
       }),
     }));
+    if (phase) {
+      await get().addNotification({
+        title: "Phase Approved",
+        message: `"${phase.title}" in ${project?.name || "project"} has been approved for fund release`,
+        type: "phase",
+        link: `/dashboard/projects/${projectId}`,
+      });
+    }
   },
 
   releasePhaseFund: async (projectId, phaseId) => {
+    const project = get().projects.find((p) => p.id === projectId);
+    const phase = project?.phases.find((ph) => ph.id === phaseId);
     await releasePhaseFundInDB(phaseId);
     set((state) => ({
       projects: state.projects.map((p) => {
@@ -241,6 +260,14 @@ export const useStore = create<AppState>((set, get) => ({
         };
       }),
     }));
+    if (phase) {
+      await get().addNotification({
+        title: "Funds Released",
+        message: `₦${phase.budgetAllocation.toLocaleString()} released for "${phase.title}" in ${project?.name || "project"}`,
+        type: "payment",
+        link: `/dashboard/projects/${projectId}`,
+      });
+    }
   },
 
   addEvidence: async (projectId, phaseId, evidenceData) => {
@@ -263,6 +290,14 @@ export const useStore = create<AppState>((set, get) => ({
           };
         }),
       }));
+      const project = get().projects.find((p) => p.id === projectId);
+      const phase = project?.phases.find((ph) => ph.id === phaseId);
+      await get().addNotification({
+        title: "Evidence Uploaded",
+        message: `New ${evidenceData.type} uploaded for "${phase?.title || "phase"}" in ${project?.name || "project"}`,
+        type: "evidence",
+        link: `/dashboard/projects/${projectId}`,
+      });
     }
   },
 
@@ -320,6 +355,13 @@ export const useStore = create<AppState>((set, get) => ({
     });
     if (dispute) {
       set((state) => ({ disputes: [dispute, ...state.disputes] }));
+      const project = get().projects.find((p) => p.id === disputeData.projectId);
+      await get().addNotification({
+        title: "Dispute Raised",
+        message: `Dispute "${disputeData.title}" raised in ${project?.name || "project"}`,
+        type: "dispute",
+        link: `/dashboard/disputes`,
+      });
     }
   },
 
@@ -343,11 +385,57 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({ activities: [{ ...activityData, id: `act-${Date.now()}` }, ...state.activities] }));
   },
 
-  markNotificationRead: (notifId) => {
+  markNotificationRead: async (notifId) => {
+    await markNotificationReadDB(notifId);
     set((state) => ({ notifications: state.notifications.map((n) => (n.id === notifId ? { ...n, read: true } : n)) }));
   },
 
-  markAllNotificationsRead: () => {
+  markAllNotificationsRead: async () => {
+    const user = get().currentUser;
+    if (!user) return;
+    await markAllNotificationsReadDB(user.id);
     set((state) => ({ notifications: state.notifications.map((n) => ({ ...n, read: true })) }));
+  },
+
+  loadNotifications: async () => {
+    const user = get().currentUser;
+    if (!user) return;
+    const rows = await fetchNotificationsDB(user.id);
+    const notifications: Notification[] = rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      title: r.title,
+      message: r.message,
+      type: r.type as Notification["type"],
+      read: r.read,
+      createdAt: r.createdAt,
+      link: r.link || undefined,
+    }));
+    set({ notifications });
+  },
+
+  addNotification: async (data) => {
+    const user = get().currentUser;
+    if (!user) return;
+    const row = await insertNotificationDB({
+      user_id: user.id,
+      title: data.title,
+      message: data.message,
+      type: data.type,
+      link: data.link,
+    });
+    if (row) {
+      const notification: Notification = {
+        id: row.id,
+        userId: row.userId,
+        title: row.title,
+        message: row.message,
+        type: row.type as Notification["type"],
+        read: row.read,
+        createdAt: row.createdAt,
+        link: row.link || undefined,
+      };
+      set((state) => ({ notifications: [notification, ...state.notifications] }));
+    }
   },
 }));

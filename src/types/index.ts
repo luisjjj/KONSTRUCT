@@ -157,4 +157,5 @@ export interface Notification {
   read: boolean;
   createdAt: string;
   projectId?: string;
+  link?: string;
 }

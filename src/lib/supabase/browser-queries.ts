@@ -570,3 +570,73 @@ export async function fetchPayments(projectId: string): Promise<Payment[]> {
 
   return (rows || []).map(mapPayment);
 }
+
+// ── Notifications ──────────────────────────────────────────────────────────
+
+export interface NotificationRow {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: string;
+  read: boolean;
+  link: string | null;
+  createdAt: string;
+}
+
+function mapNotification(row: any): NotificationRow {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    message: row.message,
+    type: row.type,
+    read: row.read || false,
+    link: row.link,
+    createdAt: row.created_at,
+  };
+}
+
+export async function fetchNotifications(userId: string): Promise<NotificationRow[]> {
+  const supabase = createClient();
+  const { data: rows } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  return (rows || []).map(mapNotification);
+}
+
+export async function insertNotification(data: {
+  user_id: string;
+  title: string;
+  message: string;
+  type: string;
+  link?: string;
+}): Promise<NotificationRow | null> {
+  const supabase = createClient();
+  const { data: row, error } = await supabase
+    .from("notifications")
+    .insert({
+      user_id: data.user_id,
+      title: data.title,
+      message: data.message,
+      type: data.type,
+      link: data.link || null,
+    })
+    .select()
+    .single();
+  if (error || !row) return null;
+  return mapNotification(row);
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  const supabase = createClient();
+  await supabase.from("notifications").update({ read: true }).eq("id", notificationId);
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  const supabase = createClient();
+  await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
+}

@@ -46,6 +46,7 @@ const navItems = [
   { label: "Disputes", href: "/dashboard/disputes", icon: <IconShield size={18} /> },
   { label: "Quotes", href: "/dashboard/quotes", icon: <IconFileText size={18} /> },
   { label: "Reports", href: "/dashboard/reports", icon: <IconChart size={18} /> },
+  { label: "Notifications", href: "/dashboard/notifications", icon: <IconBell size={18} /> },
   { label: "Settings", href: "/dashboard/settings", icon: <IconSettings size={18} /> },
 ];
 
@@ -122,10 +123,16 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
 }
 
 function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
-  const { notifications, markAllNotificationsRead, currentUser } = useStore();
+  const { notifications, markAllNotificationsRead, markNotificationRead, currentUser } = useStore();
   const { theme, toggle } = useTheme();
   const [showNotifs, setShowNotifs] = useState(false);
-  const unreadCount = notifications.filter((n) => !n.read && n.userId === currentUser?.id).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleNotifClick = (id: string, link?: string) => {
+    markNotificationRead(id);
+    if (link) window.location.href = link;
+    setShowNotifs(false);
+  };
 
   return (
     <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-700/80">
@@ -162,16 +169,30 @@ function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
                 <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl shadow-slate-200/50 overflow-hidden z-50">
                   <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
                     <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</h3>
-                    <button onClick={markAllNotificationsRead} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">Mark all read</button>
+                    {unreadCount > 0 && (
+                      <button onClick={markAllNotificationsRead} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">Mark all read</button>
+                    )}
                   </div>
                   <div className="max-h-80 overflow-y-auto divide-y divide-slate-50 dark:divide-slate-800">
-                    {notifications.slice(0, 5).map((n) => (
-                      <div key={n.id} className={cn("px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer", !n.read && "bg-indigo-50/30 dark:bg-indigo-900/20")}>
-                        <div className="text-[13px] font-medium text-slate-900 dark:text-slate-100">{n.title}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{n.message}</div>
-                      </div>
-                    ))}
+                    {notifications.length === 0 ? (
+                      <div className="px-5 py-8 text-center text-[13px] text-slate-400 dark:text-slate-500">No notifications yet</div>
+                    ) : (
+                      notifications.slice(0, 5).map((n) => (
+                        <button key={n.id} onClick={() => handleNotifClick(n.id, n.link)}
+                          className={cn("w-full text-left px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors", !n.read && "bg-slate-50 dark:bg-slate-800/50")}>
+                          <div className="text-[13px] font-medium text-slate-900 dark:text-slate-100">{n.title}</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{n.message}</div>
+                          <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{new Date(n.createdAt).toLocaleDateString("en-NG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
+                        </button>
+                      ))
+                    )}
                   </div>
+                  {notifications.length > 0 && (
+                    <Link href="/dashboard/notifications" onClick={() => setShowNotifs(false)}
+                      className="block px-5 py-3 text-center text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800 transition-colors">
+                      View All Notifications
+                    </Link>
+                  )}
                 </div>
               </>
             )}
@@ -184,7 +205,7 @@ function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentUser, setCurrentUser } = useStore();
+  const { currentUser, setCurrentUser, loadNotifications } = useStore();
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -214,6 +235,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           role: profile?.role || meta.role || "owner",
           createdAt: user.created_at,
         });
+        loadNotifications();
       }
       if (mounted) setAuthChecked(true);
     };
