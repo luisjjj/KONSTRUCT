@@ -36,18 +36,17 @@ export default function PricingPage() {
 
   const handleSuccess = async (planName: string) => {
     setSubscribedPlan(planName);
-    setSuccess(true);
 
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (user && planName !== "starter") {
-      const { error } = await supabase.rpc("update_user_role_for_subscription", {
+      const { data, error } = await supabase.rpc("update_user_role_for_subscription", {
         p_user_id: user.id,
         p_plan_name: planName,
       });
-      if (error) console.error("Role update failed:", error.message);
-      await supabase.auth.getSession();
+      console.log("Role update result:", { data, error, planName, userId: user.id });
     }
+    setSuccess(true);
   };
 
   if (success) {
@@ -65,7 +64,7 @@ export default function PricingPage() {
             Your <strong>{subscribedPlan}</strong> subscription is now active. You have access to all features in your plan.
           </p>
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => window.location.href = "/dashboard"}
             className="px-6 py-3 text-[14px] font-semibold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-200 transition-all"
           >
             Go to Dashboard

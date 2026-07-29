@@ -205,6 +205,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           .select("role")
           .eq("id", user.id)
           .single();
+        console.log("Dashboard auth - profile role:", profile?.role, "user id:", user.id);
         const meta = user.user_metadata || {};
         setCurrentUser({
           id: user.id,
