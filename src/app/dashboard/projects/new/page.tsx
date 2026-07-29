@@ -17,7 +17,7 @@ const defaultPhases = [
 
 export default function NewProjectPage() {
   const router = useRouter();
-  const { createProject } = useStore();
+  const { createProject, currentUser } = useStore();
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -58,6 +58,17 @@ export default function NewProjectPage() {
     });
 
     if (project) {
+      // Send project created email
+      fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "projectCreated",
+          to: currentUser?.email,
+          projectName: project.name,
+          projectType: projectType || "Residential",
+        }),
+      }).catch(() => {});
       router.push(`/dashboard/projects/${project.id}`);
     } else {
       setError("Failed to create project. Please try again.");

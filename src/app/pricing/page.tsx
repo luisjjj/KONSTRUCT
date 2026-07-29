@@ -75,6 +75,13 @@ export default function PricingPage() {
         current_period_end: periodEnd.toISOString(),
       });
       console.log("Subscription insert:", { planName, errorMsg: subError?.message, errorCode: subError?.code });
+
+      // Send subscription confirmation email
+      fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "subscriptionConfirmed", to: user.email, planName }),
+      }).catch(() => {});
     }
     setSuccess(true);
   };
