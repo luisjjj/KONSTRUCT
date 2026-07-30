@@ -207,6 +207,10 @@ export async function insertProject(data: {
   name: string;
   description?: string;
   location?: string;
+  address?: string;
+  project_type?: string;
+  start_date?: string;
+  expected_end_date?: string;
   total_budget: number;
   status?: string;
   funds_locked?: number;
@@ -214,10 +218,7 @@ export async function insertProject(data: {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    console.error("insertProject: No authenticated user");
-    return null;
-  }
+  if (!user) return null;
 
   const { data: row, error } = await supabase
     .from("projects")
@@ -225,6 +226,10 @@ export async function insertProject(data: {
       name: data.name,
       description: data.description || "",
       location: data.location || "",
+      address: data.address || "",
+      project_type: data.project_type || "Residential",
+      start_date: data.start_date || "",
+      expected_end_date: data.expected_end_date || "",
       total_budget: data.total_budget,
       status: data.status || "active",
       funds_locked: data.funds_locked || data.total_budget,
@@ -233,18 +238,13 @@ export async function insertProject(data: {
     .select()
     .single();
 
-  if (error || !row) {
-    console.error("Failed to create project:", error?.message, error?.details, error?.hint);
-    return null;
-  }
+  if (error || !row) return null;
 
   const { error: collabError } = await supabase.from("project_collaborators").insert({
     project_id: row.id,
     user_id: user.id,
     role: "owner",
   });
-  if (collabError) console.error("Failed to add collaborator:", collabError.message);
-
   return mapProject(row);
 }
 
@@ -270,10 +270,7 @@ export async function insertPhase(data: {
     .select()
     .single();
 
-  if (error || !row) {
-    console.error("Failed to create phase:", error);
-    return null;
-  }
+  if (error || !row) return null;
   return mapPhase(row);
 }
 
@@ -293,10 +290,7 @@ export async function insertMilestone(data: {
     .select()
     .single();
 
-  if (error || !row) {
-    console.error("Failed to create milestone:", error);
-    return null;
-  }
+  if (error || !row) return null;
   return mapMilestone(row);
 }
 
@@ -406,6 +400,22 @@ export async function releasePhaseFundInDB(phaseId: string): Promise<boolean> {
 
 // ── Evidence ─────────────────────────────────────────────────────────────────
 
+export async function uploadEvidenceFile(file: File, projectId: string): Promise<string | null> {
+  const supabase = createClient();
+  const ext = file.name.split(".").pop() || "jpg";
+  const path = `${projectId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+  const { error } = await supabase.storage.from("evidence").upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+
+  if (error) return null;
+
+  const { data } = supabase.storage.from("evidence").getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
 export async function insertEvidence(data: {
   phase_id: string;
   type: string;
@@ -426,10 +436,7 @@ export async function insertEvidence(data: {
     .select()
     .single();
 
-  if (error || !row) {
-    console.error("Failed to insert evidence:", error);
-    return null;
-  }
+  if (error || !row) return null;
 
   const { data: phase } = await supabase.from("phases").select("project_id, title").eq("id", data.phase_id).single();
   if (phase) {
@@ -443,6 +450,17 @@ export async function insertEvidence(data: {
   }
 
   return mapEvidence(row);
+}
+
+export async function verifyEvidenceInDB(evidenceId: string): Promise<boolean> {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { error } = await supabase
+    .from("evidence")
+    .update({ verified_by: user.id, verified_at: new Date().toISOString() })
+    .eq("id", evidenceId);
+  return !error;
 }
 
 // ── Disputes ─────────────────────────────────────────────────────────────────
@@ -478,10 +496,7 @@ export async function insertDispute(data: {
     .select()
     .single();
 
-  if (error || !row) {
-    console.error("Failed to create dispute:", error);
-    return null;
-  }
+  if (error || !row) return null;
   return mapDispute(row);
 }
 
@@ -514,6 +529,15 @@ export async function insertDisputeMessage(disputeId: string, userId: string, me
 }
 
 // ── Activities ───────────────────────────────────────────────────────────────
+
+export async function updateProfile(userId: string, data: { full_name?: string; phone?: string; organization?: string }): Promise<boolean> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ full_name: data.full_name, phone: data.phone, organization: data.organization })
+    .eq("id", userId);
+  return !error;
+}
 
 export async function fetchActivities(projectId: string): Promise<Activity[]> {
   const supabase = createClient();
@@ -639,4 +663,83 @@ export async function markNotificationRead(notificationId: string): Promise<void
 export async function markAllNotificationsRead(userId: string): Promise<void> {
   const supabase = createClient();
   await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
+}
+
+// ── Project Invites ──────────────────────────────────────────────────────────
+
+export interface ProjectInvite {
+  id: string;
+  projectId: string;
+  email: string;
+  role: string;
+  invitedBy: string;
+  accepted: boolean;
+  createdAt: string;
+}
+
+export async function fetchProjectInvites(projectId: string): Promise<ProjectInvite[]> {
+  const supabase = createClient();
+  const { data: rows } = await supabase
+    .from("project_invites")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+
+  return (rows || []).map((r) => ({
+    id: r.id,
+    projectId: r.project_id,
+    email: r.email,
+    role: r.role,
+    invitedBy: r.invited_by,
+    accepted: r.accepted,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function sendProjectInvite(projectId: string, email: string, role: string, invitedBy: string): Promise<ProjectInvite | null> {
+  const supabase = createClient();
+  const { data: row, error } = await supabase
+    .from("project_invites")
+    .insert({
+      project_id: projectId,
+      email,
+      role,
+      invited_by: invitedBy,
+    })
+    .select()
+    .single();
+
+  if (error || !row) return null;
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    email: row.email,
+    role: row.role,
+    invitedBy: row.invited_by,
+    accepted: row.accepted,
+    createdAt: row.created_at,
+  };
+}
+
+export async function acceptProjectInvite(inviteId: string, userId: string): Promise<boolean> {
+  const supabase = createClient();
+
+  const { data: invite } = await supabase
+    .from("project_invites")
+    .select("*")
+    .eq("id", inviteId)
+    .single();
+
+  if (!invite) return false;
+
+  const { error: collabError } = await supabase.from("project_collaborators").insert({
+    project_id: invite.project_id,
+    user_id: userId,
+    role: invite.role,
+  });
+
+  if (collabError) return false;
+
+  await supabase.from("project_invites").update({ accepted: true }).eq("id", inviteId);
+  return true;
 }

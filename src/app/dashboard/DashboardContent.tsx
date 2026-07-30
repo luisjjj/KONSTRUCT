@@ -13,7 +13,7 @@ import {
 const PhaseRoadmap3D = dynamic(() => import("@/components/PhaseRoadmap3D"), { ssr: false });
 
 export default function DashboardContent() {
-  const { projects, activities, currentUser, notifications, loadProjects } = useStore();
+  const { projects, activities, currentUser, notifications, loadProjects, loadActivities } = useStore();
   const [loading, setLoading] = useState(true);
   const [selectedProjectIndex, setSelectedProjectIndex] = useState(0);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -24,6 +24,14 @@ export default function DashboardContent() {
       loadProjects().finally(() => setLoading(false));
     }
   }, [currentUser, loadProjects]);
+
+  const activeProject = projects[selectedProjectIndex] ?? projects[0];
+
+  useEffect(() => {
+    if (activeProject) {
+      loadActivities(activeProject.id);
+    }
+  }, [activeProject?.id, loadActivities]);
 
   const closeDropdown = useCallback(() => setIsDropdownOpen(false), []);
 
@@ -46,7 +54,6 @@ export default function DashboardContent() {
   }
 
   const userProjects = projects;
-  const activeProject = userProjects[selectedProjectIndex] ?? userProjects[0];
 
   if (!activeProject) {
     return (

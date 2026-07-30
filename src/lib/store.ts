@@ -10,6 +10,7 @@ import {
   approvePhaseInDB,
   releasePhaseFundInDB,
   insertEvidence as insertEvidenceDB,
+  verifyEvidenceInDB,
   fetchActivities,
   fetchPayments,
   fetchDisputes,
@@ -21,6 +22,9 @@ import {
   insertNotification as insertNotificationDB,
   markNotificationRead as markNotificationReadDB,
   markAllNotificationsRead as markAllNotificationsReadDB,
+  fetchProjectInvites,
+  sendProjectInvite,
+  acceptProjectInvite,
   type Subscription,
   type NotificationRow,
 } from "@/lib/supabase/browser-queries";
@@ -34,6 +38,7 @@ interface AppState {
   disputes: Dispute[];
   quotes: Quote[];
   payments: Payment[];
+  projectInvites: import("@/lib/supabase/browser-queries").ProjectInvite[];
   currentProjectId: string | null;
   _loaded: boolean;
 
@@ -56,13 +61,14 @@ interface AppState {
   approvePhase: (projectId: string, phaseId: string) => Promise<void>;
   releasePhaseFund: (projectId: string, phaseId: string) => Promise<void>;
   addEvidence: (projectId: string, phaseId: string, evidence: Omit<Evidence, "id">) => Promise<void>;
-  verifyEvidence: (projectId: string, phaseId: string, evidenceId: string) => void;
+  verifyEvidence: (projectId: string, phaseId: string, evidenceId: string) => Promise<void>;
 
   loadPayments: (projectId: string) => Promise<void>;
   requestPayment: (payment: Omit<Payment, "id">) => void;
   approvePayment: (paymentId: string) => void;
 
   loadDisputes: (projectId: string) => Promise<void>;
+  loadDisputeMessages: (disputeId: string) => Promise<void>;
   raiseDispute: (dispute: Omit<Dispute, "id" | "messages" | "status">) => Promise<void>;
   addDisputeMessage: (disputeId: string, userId: string, content: string) => Promise<void>;
 
@@ -73,6 +79,10 @@ interface AppState {
   addNotification: (data: { title: string; message: string; type: string; link?: string }) => Promise<void>;
   markNotificationRead: (notifId: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
+
+  loadProjectInvites: (projectId: string) => Promise<void>;
+  sendInvite: (projectId: string, email: string, role: string) => Promise<boolean>;
+  acceptInvite: (inviteId: string) => Promise<boolean>;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -84,6 +94,7 @@ export const useStore = create<AppState>((set, get) => ({
   disputes: [],
   quotes: [],
   payments: [],
+  projectInvites: [],
   currentProjectId: null,
   _loaded: false,
 
@@ -95,7 +106,6 @@ export const useStore = create<AppState>((set, get) => ({
     const user = get().currentUser;
     if (!user) return;
     const subscription = await fetchSubscription(user.id);
-    console.log("loadSubscription:", { userId: user.id, subscription });
     set({ subscription });
   },
 
@@ -106,11 +116,11 @@ export const useStore = create<AppState>((set, get) => ({
     const supabase = createClient();
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, phone, organization")
       .eq("id", user.id)
       .single();
     if (profile) {
-      set({ currentUser: { ...user, role: profile.role } });
+      set({ currentUser: { ...user, role: profile.role, phone: profile.phone || undefined, organization: profile.organization || undefined } });
     }
   },
 
@@ -142,6 +152,10 @@ export const useStore = create<AppState>((set, get) => ({
       name: data.name,
       description: data.description,
       location: data.location,
+      address: data.address,
+      project_type: data.projectType,
+      start_date: data.startDate,
+      expected_end_date: data.expectedEndDate,
       total_budget: data.totalBudget,
       status: "active",
       funds_locked: data.totalBudget,
@@ -301,7 +315,9 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
-  verifyEvidence: (projectId, phaseId, evidenceId) => {
+  verifyEvidence: async (projectId, phaseId, evidenceId) => {
+    const ok = await verifyEvidenceInDB(evidenceId);
+    if (!ok) return;
     set((state) => ({
       projects: state.projects.map((p) => {
         if (p.id !== projectId) return p;
@@ -340,7 +356,19 @@ export const useStore = create<AppState>((set, get) => ({
 
   loadDisputes: async (projectId) => {
     const disputes = await fetchDisputes(projectId);
-    set({ disputes });
+    set((state) => {
+      const existing = state.disputes.filter((d) => !disputes.find((nd) => nd.id === d.id));
+      return { disputes: [...existing, ...disputes] };
+    });
+  },
+
+  loadDisputeMessages: async (disputeId) => {
+    const messages = await fetchDisputeMessages(disputeId);
+    set((state) => ({
+      disputes: state.disputes.map((d) =>
+        d.id === disputeId ? { ...d, messages } : d
+      ),
+    }));
   },
 
   raiseDispute: async (disputeData) => {
@@ -437,5 +465,43 @@ export const useStore = create<AppState>((set, get) => ({
       };
       set((state) => ({ notifications: [notification, ...state.notifications] }));
     }
+  },
+
+  loadProjectInvites: async (projectId) => {
+    const invites = await fetchProjectInvites(projectId);
+    set({ projectInvites: invites });
+  },
+
+  sendInvite: async (projectId, email, role) => {
+    const user = get().currentUser;
+    if (!user) return false;
+    const invite = await sendProjectInvite(projectId, email, role, user.id);
+    if (invite) {
+      set((state) => ({ projectInvites: [invite, ...state.projectInvites] }));
+      const project = get().projects.find((p) => p.id === projectId);
+      await get().addNotification({
+        title: "Invite Sent",
+        message: `Invitation sent to ${email} for "${project?.name || "project"}"`,
+        type: "system",
+        link: `/dashboard/projects/${projectId}`,
+      });
+      fetch("/api/send-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: email, projectName: project?.name || "project", inviterName: user.name, role }),
+      }).catch(() => {});
+      return true;
+    }
+    return false;
+  },
+
+  acceptInvite: async (inviteId) => {
+    const user = get().currentUser;
+    if (!user) return false;
+    const ok = await acceptProjectInvite(inviteId, user.id);
+    if (ok) {
+      await get().loadProjects();
+    }
+    return ok;
   },
 }));

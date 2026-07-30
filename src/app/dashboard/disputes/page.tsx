@@ -2,23 +2,44 @@
 
 import { useStore } from "@/lib/store";
 import { formatDateTime, cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { IconShield, IconPlus, IconCheckCircle } from "@/components/icons";
 
 export default function DisputesPage() {
-  const { disputes, projects, currentUser, raiseDispute, addDisputeMessage } = useStore();
+  const { disputes, projects, currentUser, raiseDispute, addDisputeMessage, loadDisputes, loadProjects } = useStore();
   const [showNew, setShowNew] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newProjectId, setNewProjectId] = useState("");
   const [msgText, setMsgText] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      await loadProjects();
+      setLoading(false);
+    };
+    load();
+  }, [loadProjects]);
+
+  useEffect(() => {
+    if (projects.length > 0) {
+      projects.forEach((p) => loadDisputes(p.id));
+    }
+  }, [projects, loadDisputes]);
 
   const userDisputes = disputes.filter((d) => {
     const p = projects.find((pp) => pp.id === d.projectId);
     return p && (p.ownerId === currentUser?.id || p.collaborators.includes(currentUser?.id || ""));
   });
   const sel = userDisputes.find((d) => d.id === selected);
+
+  useEffect(() => {
+    if (selected) {
+      useStore.getState().loadDisputeMessages(selected);
+    }
+  }, [selected]);
 
   const handleCreate = () => {
     if (!newTitle || !newDesc || !newProjectId || !currentUser) return;

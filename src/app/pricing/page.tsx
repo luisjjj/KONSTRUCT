@@ -74,7 +74,6 @@ export default function PricingPage() {
         current_period_start: now.toISOString(),
         current_period_end: periodEnd.toISOString(),
       });
-      console.log("Subscription insert:", { planName, errorMsg: subError?.message, errorCode: subError?.code });
 
       // Send subscription confirmation email
       fetch("/api/send-email", {

@@ -223,16 +223,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         // Fetch role from profiles table (not user_metadata, which is set at signup)
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, phone, organization")
           .eq("id", user.id)
           .single();
-        console.log("Dashboard auth - profile role:", profile?.role, "user id:", user.id);
         const meta = user.user_metadata || {};
         setCurrentUser({
           id: user.id,
           name: meta.full_name || user.email?.split("@")[0] || "User",
           email: user.email || "",
           role: profile?.role || meta.role || "owner",
+          phone: profile?.phone || undefined,
+          organization: profile?.organization || undefined,
           createdAt: user.created_at,
         });
         loadNotifications();

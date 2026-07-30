@@ -6,10 +6,9 @@ import { useState, useEffect } from "react";
 import { IconSettings, IconKey, IconTrash, IconCheckCircle, IconCreditCard } from "@/components/icons";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { updateProfile } from "@/lib/supabase/browser-queries";
 
 const FlutterwavePay = dynamic(() => import("@/components/FlutterwavePay"), { ssr: false });
-
-const planPrices: Record<string, number> = { professional: 25000, enterprise: 100000 };
 
 export default function SettingsPage() {
   const { currentUser, subscription, loadSubscription, refreshUserProfile } = useStore();
@@ -18,12 +17,36 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState(currentUser?.phone || "");
   const [org, setOrg] = useState(currentUser?.organization || "");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadSubscription();
   }, [loadSubscription]);
 
-  const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  useEffect(() => {
+    if (currentUser) {
+      setName(currentUser.name || "");
+      setEmail(currentUser.email || "");
+      setPhone(currentUser.phone || "");
+      setOrg(currentUser.organization || "");
+    }
+  }, [currentUser]);
+
+  const handleSave = async () => {
+    if (!currentUser || saving) return;
+    setSaving(true);
+    const ok = await updateProfile(currentUser.id, {
+      full_name: name,
+      phone,
+      organization: org,
+    });
+    if (ok) {
+      await refreshUserProfile();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
+    setSaving(false);
+  };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -67,8 +90,8 @@ export default function SettingsPage() {
             <label className="block text-[13px] font-medium text-slate-600 dark:text-slate-300 mb-1.5">Organization</label>
             <input type="text" value={org} onChange={(e) => setOrg(e.target.value)} className="w-full px-4 py-3 text-[14px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all" />
           </div>
-          <button onClick={handleSave} className="px-5 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all active:scale-[0.98] shadow-sm">
-            {saved ? "Saved!" : "Save Changes"}
+          <button onClick={handleSave} disabled={saving} className="px-5 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all active:scale-[0.98] shadow-sm disabled:opacity-50">
+            {saving ? "Saving..." : saved ? "Saved!" : "Save Changes"}
           </button>
         </div>
       </div>

@@ -278,15 +278,29 @@ export default function LandingContent() {
               <p className="text-sm text-slate-400 leading-relaxed">The trust engine for construction delivery in Nigeria.</p>
             </div>
             {[
-              { title: "Product", links: ["Features", "Pricing", "How It Works", "Security"] },
-              { title: "Company", links: ["About", "Blog", "Careers", "Contact"] },
-              { title: "Legal", links: ["Privacy", "Terms", "Cookie Policy"] },
+              { title: "Product", links: [
+                { label: "Features", href: "/features" },
+                { label: "Pricing", href: "/pricing" },
+                { label: "How It Works", href: "/how-it-works" },
+                { label: "Security", href: "/features" },
+              ]},
+              { title: "Company", links: [
+                { label: "About", href: "/features" },
+                { label: "Blog", href: "#" },
+                { label: "Careers", href: "#" },
+                { label: "Contact", href: "#" },
+              ]},
+              { title: "Legal", links: [
+                { label: "Privacy", href: "#" },
+                { label: "Terms", href: "#" },
+                { label: "Cookie Policy", href: "#" },
+              ]},
             ].map((col, i) => (
               <div key={i}>
                 <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">{col.title}</h4>
                 <ul className="space-y-2">
                   {col.links.map((link, j) => (
-                    <li key={j}><a href="#" className="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">{link}</a></li>
+                    <li key={j}><Link href={link.href} className="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">{link.label}</Link></li>
                   ))}
                 </ul>
               </div>

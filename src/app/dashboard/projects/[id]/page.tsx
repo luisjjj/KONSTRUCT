@@ -3,14 +3,16 @@
 import { useStore } from "@/lib/store";
 import { formatNaira, formatDate, formatDateTime, timeAgo, getPhaseStatusColor, getPhaseStatusLabel, cn } from "@/lib/utils";
 import { useParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { IconChevronLeft, IconCheckCircle, IconUpload, IconCheck, IconClock, IconLock, IconMoney } from "@/components/icons";
+import { IconChevronLeft, IconCheckCircle, IconUpload, IconCheck, IconClock, IconLock, IconMoney, IconCamera, IconUsers } from "@/components/icons";
+import { uploadEvidenceFile, type ProjectInvite } from "@/lib/supabase/browser-queries";
+import { openWhatsApp } from "@/lib/utils";
 
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = params.id as string;
-  const { projects, currentUser, loadProject, approvePhase, releasePhaseFund, toggleMilestone, addEvidence, verifyEvidence } = useStore();
+  const { projects, activities, currentUser, loadProject, approvePhase, releasePhaseFund, toggleMilestone, addEvidence, verifyEvidence } = useStore();
   const project = projects.find((p) => p.id === projectId);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"phases" | "evidence" | "payments" | "activity">("phases");
@@ -19,6 +21,13 @@ export default function ProjectDetailPage() {
   const [uploadPhaseId, setUploadPhaseId] = useState<string | null>(null);
   const [uploadCaption, setUploadCaption] = useState("");
   const [uploadType, setUploadType] = useState<"photo" | "video" | "document">("photo");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"contractor" | "verifier">("contractor");
+  const { projectInvites, loadProjectInvites, sendInvite } = useStore();
   const [showApprove, setShowApprove] = useState(false);
   const [approvePhaseId, setApprovePhaseId] = useState<string | null>(null);
   const [showFund, setShowFund] = useState(false);
@@ -27,8 +36,9 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (projectId) {
       loadProject(projectId).finally(() => setLoading(false));
+      loadProjectInvites(projectId);
     }
-  }, [projectId, loadProject]);
+  }, [projectId, loadProject, loadProjectInvites]);
 
   if (loading) {
     return (
@@ -50,10 +60,25 @@ export default function ProjectDetailPage() {
   const currentPhase = project.phases.find((p) => ["in_progress", "submitted_for_review"].includes(p.status));
   const sel = project.phases.find((p) => p.id === selectedPhase);
 
-  const doUpload = () => {
-    if (!uploadPhaseId || !currentUser) return;
-    addEvidence(project.id, uploadPhaseId, { phaseId: uploadPhaseId, type: uploadType, url: `/evidence/${uploadType}-${Date.now()}.jpg`, caption: uploadCaption, uploadedBy: currentUser.id, uploadedAt: new Date().toISOString(), verified: false });
-    setShowUpload(false); setUploadCaption("");
+  const doUpload = async () => {
+    if (!uploadPhaseId || !currentUser || !uploadFile) return;
+    setUploading(true);
+    const url = await uploadEvidenceFile(uploadFile, project.id);
+    if (url) {
+      addEvidence(project.id, uploadPhaseId, {
+        phaseId: uploadPhaseId,
+        type: uploadType,
+        url,
+        caption: uploadCaption,
+        uploadedBy: currentUser.id,
+        uploadedAt: new Date().toISOString(),
+        verified: false,
+      });
+    }
+    setUploading(false);
+    setShowUpload(false);
+    setUploadCaption("");
+    setUploadFile(null);
   };
 
   const tabs = ["phases", "evidence", "payments", "activity"] as const;
@@ -69,6 +94,13 @@ export default function ProjectDetailPage() {
           <p className="text-sm text-slate-400 dark:text-slate-500 mt-0.5">{project.location} · {project.projectType}</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => openWhatsApp("", `Check out "${project.name}" on Konstruct\n\n${project.location} · ${project.projectType}\nBudget: ${formatNaira(project.totalBudget)}\nCompletion: ${project.completionPercentage}%\n\nhttps://konstruct.name.ng/dashboard/projects/${project.id}`)} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-all">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            Share on WhatsApp
+          </button>
+          <button onClick={() => setShowInvite(true)} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+            <IconUsers size={14} /> Invite
+          </button>
           <button onClick={() => { setUploadPhaseId(currentPhase?.id || project.phases[0]?.id); setShowUpload(true); }}
             className="inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all shadow-sm">
             <IconUpload size={14} /> Upload Evidence
@@ -162,15 +194,21 @@ export default function ProjectDetailPage() {
                             <h4 className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 mb-2">Evidence</h4>
                             <div className="grid grid-cols-2 gap-2">
                               {phase.evidence.map((ev) => (
-                                <div key={ev.id} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
-                                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                                    <IconUpload size={14} className="text-slate-500 dark:text-slate-400" />
+                                <div key={ev.id} className="rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 overflow-hidden">
+                                  {ev.type === "photo" && ev.url && !ev.url.startsWith("/evidence") ? (
+                                    <img src={ev.url} alt={ev.caption} className="w-full h-24 object-cover" />
+                                  ) : (
+                                    <div className="w-full h-24 flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+                                      <IconUpload size={20} className="text-slate-400 dark:text-slate-500" />
+                                    </div>
+                                  )}
+                                  <div className="p-2">
+                                    <div className="text-[11px] font-medium text-slate-900 dark:text-slate-100 truncate">{ev.caption}</div>
+                                    <div className="flex items-center justify-between mt-1">
+                                      <span className="text-[10px] text-slate-400 dark:text-slate-500">{timeAgo(ev.uploadedAt)}</span>
+                                      {ev.verified && <IconCheckCircle size={12} className="text-emerald-500" />}
+                                    </div>
                                   </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-[12px] font-medium text-slate-900 dark:text-slate-100 truncate">{ev.caption}</div>
-                                    <div className="text-[10px] text-slate-400 dark:text-slate-500">{timeAgo(ev.uploadedAt)}</div>
-                                  </div>
-                                  {ev.verified && <IconCheckCircle size={14} className="text-emerald-500 flex-shrink-0" />}
                                 </div>
                               ))}
                             </div>
@@ -201,14 +239,22 @@ export default function ProjectDetailPage() {
               ) : (
                 <div className="grid md:grid-cols-2 gap-3">
                   {project.phases.flatMap((p) => p.evidence.map((ev) => (
-                    <div key={ev.id} className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                      <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                        <IconUpload size={18} className="text-slate-400 dark:text-slate-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[13px] font-medium text-slate-900 dark:text-slate-100">{ev.caption}</div>
-                        <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{timeAgo(ev.uploadedAt)}</div>
-                        <div className="mt-1">
+                    <div key={ev.id} className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                      {ev.type === "photo" && ev.url && !ev.url.startsWith("/evidence") ? (
+                        <img src={ev.url} alt={ev.caption} className="w-full h-40 object-cover" />
+                      ) : (
+                        <div className="w-full h-40 flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+                          <IconUpload size={24} className="text-slate-400 dark:text-slate-500" />
+                        </div>
+                      )}
+                      <div className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13px] font-medium text-slate-900 dark:text-slate-100">{ev.caption}</div>
+                            <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{timeAgo(ev.uploadedAt)}</div>
+                          </div>
+                        </div>
+                        <div className="mt-2">
                           {ev.verified ? (
                             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Verified</span>
                           ) : (
@@ -248,7 +294,22 @@ export default function ProjectDetailPage() {
           )}
 
           {activeTab === "activity" && (
-            <div className="text-center py-16 text-slate-400 dark:text-slate-500 text-[13px]">Activity feed for this project</div>
+            <div className="space-y-3">
+              {activities.filter((a) => a.projectId === project.id).length === 0 ? (
+                <div className="text-center py-16 text-slate-400 dark:text-slate-500 text-[13px]">No activity yet</div>
+              ) : (
+                activities.filter((a) => a.projectId === project.id).slice(0, 20).map((act) => (
+                  <div key={act.id} className="flex gap-3">
+                    <div className={cn("w-2 h-2 rounded-full mt-1.5 flex-shrink-0", act.type === "payment" ? "bg-indigo-500" : act.type === "evidence" ? "bg-cyan-500" : act.type === "phase" ? "bg-emerald-500" : "bg-slate-400")} />
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-medium text-slate-900 dark:text-slate-100">{act.action}</div>
+                      <div className="text-[11px] text-slate-400 dark:text-slate-500 truncate">{act.details}</div>
+                      <div className="text-[10px] text-slate-400/70 dark:text-slate-500/70 mt-0.5">{timeAgo(act.timestamp)}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -265,18 +326,47 @@ export default function ProjectDetailPage() {
                   </button>
                 ))}
               </div>
-              <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center hover:border-slate-300 transition-colors cursor-pointer">
-                <IconUpload size={28} className="mx-auto mb-2 text-slate-400 dark:text-slate-500" />
-                <p className="text-[13px] text-slate-500 dark:text-slate-400">Click to upload or drag and drop</p>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">PNG, JPG, MP4 up to 50MB</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={uploadType === "photo" ? "image/*" : uploadType === "video" ? "video/*" : ".pdf,.doc,.docx"}
+                className="hidden"
+                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+              />
+              <div
+                className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center hover:border-slate-300 transition-colors cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadFile ? (
+                  <div>
+                    {uploadFile.type.startsWith("image/") ? (
+                      <img src={URL.createObjectURL(uploadFile)} alt="Preview" className="w-20 h-20 object-cover rounded-lg mx-auto mb-2" />
+                    ) : (
+                      <IconUpload size={28} className="mx-auto mb-2 text-slate-400" />
+                    )}
+                    <p className="text-[13px] font-medium text-slate-900 dark:text-slate-100">{uploadFile.name}</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{(uploadFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                    <button onClick={(e) => { e.stopPropagation(); setUploadFile(null); }} className="text-[11px] text-red-500 mt-1 hover:text-red-600">Remove</button>
+                  </div>
+                ) : (
+                  <>
+                    <IconUpload size={28} className="mx-auto mb-2 text-slate-400 dark:text-slate-500" />
+                    <p className="text-[13px] text-slate-500 dark:text-slate-400">Click to upload or drag and drop</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                      {uploadType === "photo" ? "PNG, JPG up to 50MB" : uploadType === "video" ? "MP4 up to 50MB" : "PDF, DOC up to 10MB"}
+                    </p>
+                  </>
+                )}
               </div>
               <div>
                 <label className="block text-[13px] font-medium text-slate-600 dark:text-slate-300 mb-1.5">Caption</label>
                 <input type="text" value={uploadCaption} onChange={(e) => setUploadCaption(e.target.value)} className="w-full px-4 py-3 text-[14px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all" placeholder="Describe what this evidence shows" />
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setShowUpload(false)} className="flex-1 py-2.5 text-[13px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
-                <button onClick={doUpload} disabled={!uploadCaption} className="flex-1 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all disabled:opacity-50">Upload</button>
+                <button onClick={() => { setShowUpload(false); setUploadFile(null); }} className="flex-1 py-2.5 text-[13px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                <button onClick={doUpload} disabled={!uploadCaption || !uploadFile || uploading} className="flex-1 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all disabled:opacity-50">
+                  {uploading ? "Uploading..." : "Upload"}
+                </button>
               </div>
             </div>
           </div>
@@ -314,6 +404,57 @@ export default function ProjectDetailPage() {
             <div className="flex gap-3">
               <button onClick={() => setShowFund(false)} className="flex-1 py-2.5 text-[13px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
               <button onClick={async () => { if (fundPhaseId) await releasePhaseFund(project.id, fundPhaseId); setShowFund(false); }} className="flex-1 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all">Release Funds</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInvite && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowInvite(false)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center mx-auto mb-4">
+              <IconUsers size={24} className="text-indigo-600" />
+            </div>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 text-center mb-4">Invite to Project</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[13px] font-medium text-slate-600 dark:text-slate-300 mb-1.5">Email Address</label>
+                <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="w-full px-4 py-3 text-[14px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all" placeholder="contractor@email.com" />
+              </div>
+              <div>
+                <label className="block text-[13px] font-medium text-slate-600 dark:text-slate-300 mb-1.5">Role</label>
+                <div className="flex gap-2">
+                  {(["contractor", "verifier"] as const).map((r) => (
+                    <button key={r} onClick={() => setInviteRole(r)} className={cn("flex-1 rounded-xl border-2 p-2.5 text-[12px] font-semibold transition-all capitalize", inviteRole === r ? "border-slate-900 bg-slate-50" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400")}>
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {projectInvites.length > 0 && (
+                <div>
+                  <label className="block text-[13px] font-medium text-slate-600 dark:text-slate-300 mb-1.5">Pending Invites</label>
+                  <div className="space-y-1.5">
+                    {projectInvites.filter((i) => !i.accepted).map((invite) => (
+                      <div key={invite.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[12px] font-medium text-slate-900 dark:text-slate-100 truncate">{invite.email}</div>
+                          <div className="text-[10px] text-slate-400 dark:text-slate-500 capitalize">{invite.role}</div>
+                        </div>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Pending</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button onClick={() => { setShowInvite(false); setInviteEmail(""); }} className="flex-1 py-2.5 text-[13px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
+                <button onClick={async () => {
+                  if (!inviteEmail) return;
+                  const ok = await sendInvite(project.id, inviteEmail, inviteRole);
+                  if (ok) { setInviteEmail(""); }
+                }} disabled={!inviteEmail} className="flex-1 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all disabled:opacity-50">Send Invite</button>
+              </div>
             </div>
           </div>
         </div>

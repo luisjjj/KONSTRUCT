@@ -132,12 +132,23 @@ export default function LoginPage() {
                 />
                 Remember me
               </label>
-              <a
-                href="#"
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!email) { setError("Enter your email first"); return; }
+                  const { createClient } = await import("@/lib/supabase/client");
+                  const supabase = createClient();
+                  const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/login`,
+                  });
+                  if (resetError) setError(resetError.message);
+                  else setError("");
+                  alert(resetError ? resetError.message : "Check your email for the reset link");
+                }}
                 className="text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
               >
                 Forgot password?
-              </a>
+              </button>
             </div>
             <button
               type="submit"
