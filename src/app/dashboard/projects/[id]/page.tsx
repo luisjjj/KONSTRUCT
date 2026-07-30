@@ -27,6 +27,7 @@ export default function ProjectDetailPage() {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"contractor" | "verifier">("contractor");
+  const [sendingInvite, setSendingInvite] = useState(false);
   const { projectInvites, loadProjectInvites, sendInvite } = useStore();
   const [showApprove, setShowApprove] = useState(false);
   const [approvePhaseId, setApprovePhaseId] = useState<string | null>(null);
@@ -425,7 +426,7 @@ export default function ProjectDetailPage() {
                 <label className="block text-[13px] font-medium text-slate-600 dark:text-slate-300 mb-1.5">Role</label>
                 <div className="flex gap-2">
                   {(["contractor", "verifier"] as const).map((r) => (
-                    <button key={r} onClick={() => setInviteRole(r)} className={cn("flex-1 rounded-xl border-2 p-2.5 text-[12px] font-semibold transition-all capitalize", inviteRole === r ? "border-slate-900 bg-slate-50" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400")}>
+                    <button key={r} onClick={() => setInviteRole(r)} className={cn("flex-1 rounded-xl border-2 p-2.5 text-[12px] font-semibold transition-all capitalize", inviteRole === r ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400")}>
                       {r}
                     </button>
                   ))}
@@ -450,10 +451,17 @@ export default function ProjectDetailPage() {
               <div className="flex gap-3">
                 <button onClick={() => { setShowInvite(false); setInviteEmail(""); }} className="flex-1 py-2.5 text-[13px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
                 <button onClick={async () => {
-                  if (!inviteEmail) return;
+                  if (!inviteEmail || sendingInvite) return;
+                  setSendingInvite(true);
                   const ok = await sendInvite(project.id, inviteEmail, inviteRole);
-                  if (ok) { setInviteEmail(""); }
-                }} disabled={!inviteEmail} className="flex-1 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all disabled:opacity-50">Send Invite</button>
+                  setSendingInvite(false);
+                  if (ok) {
+                    setInviteEmail("");
+                    setShowInvite(false);
+                  }
+                }} disabled={!inviteEmail || sendingInvite} className="flex-1 py-2.5 text-[13px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all disabled:opacity-50">
+                  {sendingInvite ? "Sending..." : "Send Invite"}
+                </button>
               </div>
             </div>
           </div>
