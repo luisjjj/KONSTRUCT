@@ -15,7 +15,7 @@ export default function ProjectDetailPage() {
   const { projects, activities, currentUser, loadProject, approvePhase, releasePhaseFund, toggleMilestone, addEvidence, verifyEvidence } = useStore();
   const project = projects.find((p) => p.id === projectId);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"phases" | "evidence" | "payments" | "activity">("phases");
+  const [activeTab, setActiveTab] = useState<"phases" | "timeline" | "evidence" | "payments" | "activity">("phases");
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadPhaseId, setUploadPhaseId] = useState<string | null>(null);
@@ -82,7 +82,7 @@ export default function ProjectDetailPage() {
     setUploadFile(null);
   };
 
-  const tabs = ["phases", "evidence", "payments", "activity"] as const;
+  const tabs = ["phases", "timeline", "evidence", "payments", "activity"] as const;
 
   return (
     <div className="space-y-6">
@@ -230,6 +230,47 @@ export default function ProjectDetailPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {activeTab === "timeline" && (
+            <div className="space-y-4">
+              {project.phases.flatMap((p) => p.evidence.filter((e) => e.type === "photo" && e.url && !e.url.startsWith("/evidence"))).length === 0 ? (
+                <div className="text-center py-16 text-slate-400 dark:text-slate-500 text-[13px]">No progress photos yet</div>
+              ) : (
+                <>
+                  <p className="text-[12px] text-slate-400 dark:text-slate-500">Chronological photo feed — {project.phases.flatMap((p) => p.evidence.filter((e) => e.type === "photo")).length} photos uploaded</p>
+                  <div className="relative">
+                    <div className="absolute left-4 top-0 bottom-0 w-px bg-slate-200 dark:bg-slate-700" />
+                    <div className="space-y-6">
+                      {project.phases.flatMap((p) =>
+                        p.evidence
+                          .filter((e) => e.type === "photo" && e.url && !e.url.startsWith("/evidence"))
+                          .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+                          .map((ev) => (
+                            <div key={ev.id} className="relative pl-10">
+                              <div className="absolute left-2.5 top-3 w-3 h-3 rounded-full bg-slate-900 dark:bg-slate-100 border-2 border-white dark:border-slate-900 z-10" />
+                              <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-900">
+                                <img src={ev.url} alt={ev.caption} className="w-full h-48 object-cover" />
+                                <div className="p-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="text-[13px] font-medium text-slate-900 dark:text-slate-100">{ev.caption}</div>
+                                    {ev.verified && <IconCheckCircle size={14} className="text-emerald-500" />}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[11px] text-slate-400 dark:text-slate-500">{timeAgo(ev.uploadedAt)}</span>
+                                    <span className="text-[10px] text-slate-300 dark:text-slate-600">·</span>
+                                    <span className="text-[11px] text-slate-400 dark:text-slate-500">{p.title}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
