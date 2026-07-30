@@ -45,7 +45,7 @@ export default function FlutterwavePay({
     customizations: {
       title: "Konstruct",
       description: `${planName} Subscription`,
-      logo: "https://konstruct-rust.vercel.app/icon.svg",
+      logo: "https://konstruct.name.ng/icon.svg",
     },
   };
 

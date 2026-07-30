@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import BackgroundLayer from "@/components/BackgroundLayer";
 import { ThemeProvider } from "@/lib/theme";
@@ -12,6 +12,20 @@ export const metadata: Metadata = {
     description: "Transparent phase-based project control with evidence-backed progress verification.",
     type: "website",
   },
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Konstruct",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f172a",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -35,6 +49,13 @@ export default function RootLayout({
           <div className="relative z-10">
             {children}
           </div>
+          <script dangerouslySetInnerHTML={{ __html: `
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(() => {});
+              });
+            }
+          `}} />
         </ThemeProvider>
       </body>
     </html>

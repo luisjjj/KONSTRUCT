@@ -1,12 +1,13 @@
 "use client";
 
 import { useStore } from "@/lib/store";
-import { getRoleLabel, getRoleColor, cn } from "@/lib/utils";
+import { getRoleLabel, getRoleColor, cn, formatNaira } from "@/lib/utils";
 import { useState, useEffect } from "react";
-import { IconSettings, IconKey, IconTrash, IconCheckCircle, IconCreditCard } from "@/components/icons";
+import { IconSettings, IconKey, IconTrash, IconCheckCircle, IconCreditCard, IconDownload } from "@/components/icons";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { updateProfile } from "@/lib/supabase/browser-queries";
+import { exportPaymentReceipt } from "@/lib/pdf-export";
 
 const FlutterwavePay = dynamic(() => import("@/components/FlutterwavePay"), { ssr: false });
 
@@ -149,6 +150,22 @@ export default function SettingsPage() {
                 </FlutterwavePay>
               )}
             </div>
+            <button
+              onClick={() => {
+                exportPaymentReceipt({
+                  transactionId: subscription.id || "N/A",
+                  amount: subscription.planName === "professional" ? 25000 : subscription.planName === "enterprise" ? 100000 : 0,
+                  currency: "NGN",
+                  plan: subscription.planName,
+                  email: currentUser?.email || "",
+                  date: subscription.currentPeriodEnd || new Date().toISOString(),
+                  status: subscription.status,
+                });
+              }}
+              className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+            >
+              <IconDownload size={14} /> Download Receipt
+            </button>
           </div>
         ) : (
           <div className="text-center py-6">

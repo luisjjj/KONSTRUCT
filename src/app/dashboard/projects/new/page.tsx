@@ -7,18 +7,88 @@ import { cn } from "@/lib/utils";
 import { IconBuilding } from "@/components/icons";
 import DatePicker from "@/components/DatePicker";
 
-const defaultPhases = [
-  { title: "Foundation", description: "Excavation, concrete laying, foundation walls, and backfilling", order: 1 },
-  { title: "Blockwork", description: "Wall construction, lintels, and floor slabs", order: 2 },
-  { title: "Roofing", description: "Roof trusses, decking, and roofing sheets installation", order: 3 },
-  { title: "Finishing", description: "Plastering, tiling, painting, plumbing, and electrical works", order: 4 },
-  { title: "External Works", description: "Perimeter fencing, gate house, landscaping, and drainage", order: 5 },
+interface Template {
+  name: string;
+  type: string;
+  description: string;
+  phases: { title: string; description: string; order: number }[];
+}
+
+const templates: Template[] = [
+  {
+    name: "3-Bedroom Bungalow",
+    type: "Residential",
+    description: "Standard 3-bedroom bungalow with self-contained kitchen, living room, and dining",
+    phases: [
+      { title: "Foundation", description: "Excavation, strip foundation, German floor, and backfilling", order: 1 },
+      { title: "Blockwork", description: "Walling, lintels, floor slab, and decking", order: 2 },
+      { title: "Roofing", description: "Trusses, bamboo ceiling, roofing sheets, and fascia", order: 3 },
+      { title: "Plastering & Screeding", description: "Internal and external plastering, floor screeding", order: 4 },
+      { title: "Finishing", description: "Tiling, painting, plumbing, electrical, and POP ceiling", order: 5 },
+      { title: "External Works", description: "Perimeter fence, gate, septic tank, borehole, and landscaping", order: 6 },
+    ],
+  },
+  {
+    name: "2-Storey Duplex",
+    type: "Residential",
+    description: "4-bedroom duplex with boys quarter, double kitchen, and spacious living areas",
+    phases: [
+      { title: "Foundation", description: "Deep foundation, pile work, ground floor slab", order: 1 },
+      { title: "Ground Floor Blockwork", description: "Ground floor walls, stairs, first floor slab", order: 2 },
+      { title: "First Floor Blockwork", description: "First floor walls, staircase to roof, roof slab", order: 3 },
+      { title: "Roofing", description: "Trusses, decking, roofing, and waterproofing", order: 4 },
+      { title: "Mechanical & Electrical", description: "Plumbing, electrical wiring, AC ducting, elevator shaft", order: 5 },
+      { title: "Finishing", description: "Tiling, painting, POP, kitchen fittings, wardrobes", order: 6 },
+      { title: "External Works", description: "Fencing, gate house, swimming pool area, landscaping", order: 7 },
+    ],
+  },
+  {
+    name: "Shop/Commercial Unit",
+    type: "Commercial",
+    description: "Single or double shop unit with store room and toilet facility",
+    phases: [
+      { title: "Foundation", description: "Excavation, foundation, and floor slab", order: 1 },
+      { title: "Blockwork & Roofing", description: "Walling, lintels, roof trusses, and sheets", order: 2 },
+      { title: "Finishing", description: "Plastering, painting, tiling, shutters/doors", order: 3 },
+      { title: "Electrical & Plumbing", description: "Wiring, lighting, socket outlets, water supply", order: 4 },
+    ],
+  },
+  {
+    name: "Warehouse",
+    type: "Industrial",
+    description: "Open span warehouse with loading bay, office space, and security post",
+    phases: [
+      { title: "Site Clearing & Foundation", description: "Clearing, grading, foundation, and floor slab", order: 1 },
+      { title: "Structural Steel", description: "Column erection, beam installation, bracing", order: 2 },
+      { title: "Cladding & Roofing", description: "Wall cladding, roofing sheets, gutters", order: 3 },
+      { title: "Floor & Finishing", description: "Floor treatment, office partition, painting", order: 4 },
+      { title: "MEP Works", description: "Electrical, plumbing, fire suppression, loading bay", order: 5 },
+    ],
+  },
+  {
+    name: "Renovation",
+    type: "Renovation",
+    description: "Existing building renovation — painting, plumbing, electrical, and structural repairs",
+    phases: [
+      { title: "Assessment & Demolition", description: "Structural assessment, demolition of damaged sections", order: 1 },
+      { title: "Structural Repairs", description: "Wall repairs, roof repairs, floor repairs", order: 2 },
+      { title: "MEP Upgrades", description: "Re-wiring, re-plumbing, new fixtures", order: 3 },
+      { title: "Finishing", description: "Plastering, tiling, painting, new fittings", order: 4 },
+    ],
+  },
+  {
+    name: "Custom",
+    type: "Residential",
+    description: "Start from scratch with your own custom phases",
+    phases: [],
+  },
 ];
 
 export default function NewProjectPage() {
   const router = useRouter();
   const { createProject, currentUser } = useStore();
   const [step, setStep] = useState(1);
+  const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [projectType, setProjectType] = useState("Residential");
@@ -27,9 +97,20 @@ export default function NewProjectPage() {
   const [totalBudget, setTotalBudget] = useState("");
   const [startDate, setStartDate] = useState("");
   const [expectedEndDate, setExpectedEndDate] = useState("");
+  const [phases, setPhases] = useState(templates[0].phases);
   const [selectedPhases, setSelectedPhases] = useState<number[]>([0, 1, 2, 3, 4]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const applyTemplate = (idx: number) => {
+    const t = templates[idx];
+    setSelectedTemplate(idx);
+    setProjectType(t.type);
+    setDescription(t.description);
+    setPhases(t.phases);
+    setSelectedPhases(t.phases.map((_, i) => i));
+    if (t.name !== "Custom") setName(t.name);
+  };
 
   const togglePhase = (idx: number) => setSelectedPhases((p) => p.includes(idx) ? p.filter((i) => i !== idx) : [...p, idx]);
 
@@ -50,8 +131,8 @@ export default function NewProjectPage() {
       startDate,
       expectedEndDate,
       phases: selectedPhases.map((i, idx) => ({
-        title: defaultPhases[i].title,
-        description: defaultPhases[i].description,
+        title: phases[i].title,
+        description: phases[i].description,
         order: idx + 1,
         budgetAllocation: phaseBudget,
       })),
@@ -83,13 +164,34 @@ export default function NewProjectPage() {
         <p className="text-sm text-slate-400 dark:text-slate-500 mt-0.5">Set up your construction project in a few steps</p>
       </div>
 
-      <div className="flex items-center gap-2">
-        {[1, 2, 3].map((s) => (
-          <div key={s} className="flex items-center gap-2 flex-1">
-            <div className={cn("h-1.5 flex-1 rounded-full transition-colors", step >= s ? "bg-slate-900" : "bg-slate-200 dark:bg-slate-700")} />
+      {step === 0 && (
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 p-6">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">Choose a Template</h2>
+            <p className="text-[13px] text-slate-400 dark:text-slate-500 mb-4">Start with a pre-built template or create from scratch</p>
+            <div className="grid grid-cols-2 gap-3">
+              {templates.map((t, i) => (
+                <button key={i} onClick={() => { applyTemplate(i); setStep(1); }}
+                  className={cn("text-left p-4 rounded-xl border-2 transition-all", selectedTemplate === i ? "border-slate-900 bg-slate-50 dark:bg-slate-800" : "border-slate-200 dark:border-slate-700 hover:border-slate-300")}>
+                  <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{t.name}</div>
+                  <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-2">{t.description}</div>
+                  <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">{t.phases.length} phases · {t.type}</div>
+                </button>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {step === 1 && (
+        <div className="flex items-center gap-2">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className="flex items-center gap-2 flex-1">
+              <div className={cn("h-1.5 flex-1 rounded-full transition-colors", step >= s ? "bg-slate-900" : "bg-slate-200 dark:bg-slate-700")} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm rounded-xl px-4 py-3">{error}</div>
@@ -145,7 +247,7 @@ export default function NewProjectPage() {
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Project Phases</h2>
             <p className="text-[13px] text-slate-400 dark:text-slate-500">Select the phases for your project</p>
             <div className="space-y-2.5">
-              {defaultPhases.map((phase, i) => (
+              {phases.map((phase, i) => (
                 <button key={i} onClick={() => togglePhase(i)} className={cn("w-full text-left rounded-xl border-2 p-4 transition-all", selectedPhases.includes(i) ? "border-slate-900 bg-slate-50 dark:bg-slate-800" : "border-slate-200 dark:border-slate-700 hover:border-slate-300")}>
                   <div className="flex items-center gap-3">
                     <div className={cn("w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0", selectedPhases.includes(i) ? "bg-slate-900 border-slate-900" : "border-slate-300 dark:border-slate-600")}>
@@ -160,16 +262,21 @@ export default function NewProjectPage() {
                   </div>
                 </button>
               ))}
+              {phases.length === 0 && (
+                <p className="text-[13px] text-slate-400 dark:text-slate-500 text-center py-4">Add your own phases in the next steps</p>
+              )}
             </div>
           </div>
         )}
       </div>
 
       <div className="flex gap-3">
-        {step > 1 && <button onClick={() => setStep(step - 1)} disabled={submitting} className="flex-1 py-3 text-[14px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all disabled:opacity-50">Back</button>}
-        {step < 3 ? (
+        {step > 0 && <button onClick={() => setStep(step - 1)} disabled={submitting} className="flex-1 py-3 text-[14px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all disabled:opacity-50">Back</button>}
+        {step === 0 && <button onClick={() => setStep(1)} className="flex-1 py-3 text-[14px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all active:scale-[0.98] shadow-sm">Continue</button>}
+        {step > 0 && step < 3 && (
           <button onClick={() => setStep(step + 1)} disabled={step === 1 && !name} className="flex-1 py-3 text-[14px] font-semibold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all active:scale-[0.98] shadow-sm disabled:opacity-50">Continue</button>
-        ) : (
+        )}
+        {step === 3 && (
           <button onClick={handleSubmit} disabled={!name || selectedPhases.length === 0 || submitting} className="flex-1 py-3 text-[14px] font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all active:scale-[0.98] shadow-sm disabled:opacity-50">
             {submitting ? "Creating..." : "Create Project"}
           </button>

@@ -743,3 +743,16 @@ export async function acceptProjectInvite(inviteId: string, userId: string): Pro
   await supabase.from("project_invites").update({ accepted: true }).eq("id", inviteId);
   return true;
 }
+
+export async function sendSms(to: string, message: string): Promise<boolean> {
+  try {
+    const res = await fetch("/api/sms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, message }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
