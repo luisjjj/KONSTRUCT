@@ -1,29 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+function getTransporter() {
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  });
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const limit = rateLimit(`invite:${ip}`, 60 * 60 * 1000, 10); // 10 per hour
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) } }
+      );
+    }
+
     const { to, projectName, inviterName, role } = await req.json();
 
     if (!to || !projectName || !inviterName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://konstruct.name.ng";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(to.trim())) {
+      return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+    }
 
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://konstruct.name.ng";
     const roleLabel = role === "contractor" ? "Contractor" : "Verifier";
 
+    const transporter = getTransporter();
     await transporter.sendMail({
       from: `"Konstruct" <${process.env.GMAIL_USER}>`,
-      to,
+      to: to.trim(),
       subject: `You've been invited to "${projectName}" on Konstruct`,
       html: `
         <!DOCTYPE html>
@@ -57,7 +74,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "Failed to send invite" }, { status: 500 });
   }
 }

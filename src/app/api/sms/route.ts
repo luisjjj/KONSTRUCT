@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const TERMII_API_URL = "https://api.termii.com/api/sms/send";
 
@@ -9,6 +10,15 @@ interface SmsPayload {
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const limit = rateLimit(`sms:${ip}`, 60 * 60 * 1000, 10); // 10 per hour
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) } }
+      );
+    }
+
     const { to, message }: SmsPayload = await request.json();
 
     if (!to || !message) {
@@ -42,7 +52,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ error: data.message || "SMS failed" }, { status: 502 });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "Failed to send SMS" }, { status: 500 });
   }
 }
