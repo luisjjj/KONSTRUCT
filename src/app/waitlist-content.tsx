@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { IconBuilding } from "@/components/icons";
 
 export default function WaitlistContent() {
   const [email, setEmail] = useState("");
@@ -45,18 +46,18 @@ export default function WaitlistContent() {
     <div className="min-h-screen bg-slate-950 flex flex-col">
       {/* Nav */}
       <nav className="w-full px-6 py-5 flex items-center justify-between max-w-5xl mx-auto">
-        <span className="text-white text-xl font-bold tracking-tight">Konstruct</span>
-        <span className="text-[12px] text-slate-500 font-medium tracking-wide uppercase">Coming Soon</span>
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center">
+            <IconBuilding size={18} className="text-slate-900" strokeWidth={2} />
+          </div>
+          <span className="text-white text-xl font-bold tracking-tight">Konstruct</span>
+        </div>
       </nav>
 
       {/* Hero */}
       <main className="flex-1 flex items-center justify-center px-6">
         <div className="max-w-xl w-full text-center space-y-8">
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/60 border border-slate-700/50 text-[12px] text-slate-400 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Launching Soon
-          </div>
 
           {/* Headline */}
           <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-tight leading-[1.1]">
@@ -67,9 +68,9 @@ export default function WaitlistContent() {
 
           {/* Subtext */}
           <p className="text-[15px] text-slate-400 leading-relaxed max-w-md mx-auto">
-            Lock funds into milestones. Verify work with evidence. Keep every
-            naira accountable. Konstruct makes construction projects transparent
-            and trustworthy.
+            Track every phase of your construction project. Upload evidence,
+            verify progress, and keep owners, contractors, and funders aligned —
+            all in one transparent ledger.
           </p>
 
           {/* Form */}
