@@ -1,9 +1,5 @@
-"use client";
+import WaitlistContent from "./waitlist-content";
 
-import dynamic from "next/dynamic";
-
-const LandingContent = dynamic(() => import("./LandingContent"), { ssr: false });
-
-export default function LandingPage() {
-  return <LandingContent />;
+export default function WaitlistPage() {
+  return <WaitlistContent />;
 }
