@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 function getSupabase() {
   return createClient(
@@ -54,6 +55,15 @@ function waitlistWelcomeEmail(name?: string) {
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const limit = rateLimit(`waitlist:${ip}`, 60 * 60 * 1000, 5); // 5 per hour
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many signups. Try again later." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) } }
+      );
+    }
+
     const { email, name } = await request.json();
 
     if (!email || typeof email !== "string") {

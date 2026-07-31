@@ -1,26 +1,14 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
-
-interface EmailPayload {
-  to: string;
-  subject: string;
-  html: string;
-}
-
-async function sendEmail({ to, subject, html }: EmailPayload) {
-  return transporter.sendMail({
-    from: `"Konstruct" <${process.env.GMAIL_USER}>`,
-    to,
-    subject,
-    html,
+function getTransporter() {
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
   });
 }
 
@@ -85,6 +73,15 @@ const templates = {
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const limit = rateLimit(`email:${ip}`, 60 * 60 * 1000, 20); // 20 per hour
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded" },
+        { status: 429, headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) } }
+      );
+    }
+
     const { type, to, name, projectName, projectType, planName } = await request.json();
 
     if (!type || !to) {
@@ -106,11 +103,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Invalid email type" }, { status: 400 });
     }
 
-    await sendEmail({ to, subject: template.subject, html: template.html });
+    const transporter = getTransporter();
+    await transporter.sendMail({
+      from: `"Konstruct" <${process.env.GMAIL_USER}>`,
+      to,
+      subject: template.subject,
+      html: template.html,
+    });
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    console.error("Email send error:", err.message);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
   }
 }
