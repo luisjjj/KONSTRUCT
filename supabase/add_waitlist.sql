@@ -2,7 +2,7 @@
 -- Waitlist Table
 -- =============================================================================
 -- Stores early-access signups for the Konstruct waitlist/coming-soon page.
--- Anyone can insert (public form), but no public reads — only service role.
+-- Anyone can insert (public form) and read count (social proof).
 -- =============================================================================
 
 create table if not exists waitlist (
@@ -20,10 +20,10 @@ create policy "Anyone can insert into waitlist"
   on waitlist for insert
   with check (true);
 
--- No public reads — only service role / Supabase dashboard
-create policy "No public reads"
+-- Anyone can read (for signup count / social proof)
+create policy "Anyone can read waitlist"
   on waitlist for select
-  using (false);
+  using (true);
 
 -- Index for counting signups
 create index if not exists idx_waitlist_created_at on waitlist (created_at);

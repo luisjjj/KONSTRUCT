@@ -5,7 +5,7 @@ import nodemailer from "nodemailer";
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 }
 
@@ -30,7 +30,7 @@ function waitlistWelcomeEmail(name?: string) {
         </div>
         <h1 style="font-size: 24px; font-weight: 700; color: #0f172a; margin: 0 0 16px;">You're in, ${displayName}!</h1>
         <p style="font-size: 15px; color: #475569; line-height: 1.6; margin: 0 0 16px;">
-          Thank you for joining the Konstruct waitlist. We're building the trust engine for construction delivery in Nigeria — a platform that locks funds into milestones, verifies work with evidence, and keeps every naira accountable.
+          Thank you for joining the Konstruct waitlist. We're building the trust engine for construction delivery in Nigeria — a platform that tracks every phase of your project, verifies work with evidence, and keeps owners, contractors, and funders aligned in one transparent ledger.
         </p>
         <p style="font-size: 15px; color: #475569; line-height: 1.6; margin: 0 0 24px;">
           We'll notify you the moment we launch. Early members will get exclusive access and founding member pricing.
@@ -38,7 +38,7 @@ function waitlistWelcomeEmail(name?: string) {
         <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
           <p style="font-size: 13px; color: #64748b; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">What's coming</p>
           <ul style="font-size: 14px; color: #475569; line-height: 1.8; margin: 0; padding-left: 20px;">
-            <li>Phase-gated fund locking</li>
+            <li>Phase-by-phase project tracking</li>
             <li>Evidence-backed progress verification</li>
             <li>Real-time project dashboards</li>
             <li>Contractor and owner collaboration</li>
