@@ -115,11 +115,11 @@ export async function GET() {
       .select("id");
 
     if (error) {
-      return NextResponse.json({ count: 0 });
+      return NextResponse.json({ count: 0, debug: error.message, code: error.code });
     }
 
     return NextResponse.json({ count: data?.length || 0 });
-  } catch {
-    return NextResponse.json({ count: 0 });
+  } catch (e: any) {
+    return NextResponse.json({ count: 0, debug: e?.message });
   }
 }
